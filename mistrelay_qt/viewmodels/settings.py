@@ -344,7 +344,7 @@ class SettingsViewModel(BaseViewModel):
             max_concurrent_downloads=self._max_concurrent_downloads,
             threads_per_download=self._threads_per_download,
         )
-        self._set_info_message("客户端设置已保存")
+        self._show_toast("success", "客户端设置已保存")
 
     @Slot()
     def pickDownloadDir(self) -> None:
@@ -427,7 +427,7 @@ class SettingsViewModel(BaseViewModel):
         self._set_busy(False)
         self._update_state = f"已下载 {downloaded.version}，正在静默安装并重启"
         self.updateStateChanged.emit()
-        self._set_info_message("更新安装器已启动，客户端即将重新启动")
+        self._show_toast("success", "更新安装器已启动，客户端即将重新启动")
         QTimer.singleShot(250, QCoreApplication.quit)
 
     def _apply_update_progress(self, downloaded: int, total: int, done: bool) -> None:
@@ -537,7 +537,7 @@ class SettingsViewModel(BaseViewModel):
         message = str(result.get("message") or "配置已保存")
         self._server_status_message = message
         self.serverStatusMessageChanged.emit()
-        self._set_info_message(message)
+        self._show_toast("success", message)
         self.loadServerCategory(category)
 
     @Slot(str)
@@ -550,7 +550,7 @@ class SettingsViewModel(BaseViewModel):
 
     def _handle_reload_result(self, category: str, result: dict[str, Any]) -> None:
         message = str(result.get("message") or "已从 config.yml 重新导入配置")
-        self._set_info_message(message)
+        self._show_toast("success", message)
         self._server_status_message = message
         self.serverStatusMessageChanged.emit()
         if category in SERVER_CATEGORY_DEFS:
@@ -595,7 +595,7 @@ class SettingsViewModel(BaseViewModel):
     def saveRcloneConfigFile(self) -> None:
         self._task_runner.submit(
             lambda: self._api_client.save_rclone_config(self._rclone_config_text),
-            on_success=lambda result: self._set_info_message(str(result.get("message") or "Rclone 配置已保存")),
+            on_success=lambda result: self._show_toast("success", str(result.get("message") or "Rclone 配置已保存")),
             on_error=self._set_error_message,
         )
 
@@ -625,7 +625,7 @@ class SettingsViewModel(BaseViewModel):
         )
 
     def _handle_restart_docker(self, result: dict[str, Any]) -> None:
-        self._set_info_message(str(result.get("message") or "Docker 重启命令已提交"))
+        self._show_toast("success", str(result.get("message") or "Docker 重启命令已提交"))
         self.loadDockerStatus()
         self.loadDockerLogs()
 
@@ -794,7 +794,7 @@ class SettingsViewModel(BaseViewModel):
         )
 
     def _handle_log_download(self, path) -> None:
-        self._set_info_message(f"日志已下载到 {path}")
+        self._show_toast("success", f"日志已下载到 {path}")
         self._local_runtime_service.show_local_file_in_folder(str(path))
 
     serverBaseUrl = Property(str, get_server_base_url, notify=serverBaseUrlChanged)

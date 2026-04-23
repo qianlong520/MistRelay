@@ -11,7 +11,7 @@ QtObject {
     readonly property color colorPrimaryHover: "#115ea3"
     readonly property color colorPrimaryPressed: "#0e4775"
     readonly property color colorSuccess: "#107c10"
-    readonly property color colorWarning: "#986f0b"
+    readonly property color colorWarning: "#0284c7"
     readonly property color colorDanger: "#d13438"
     readonly property color colorInfo: "#0078d4"
 
@@ -50,7 +50,7 @@ QtObject {
 
     readonly property color successSoft: "#ecf6ec"
     readonly property color infoSoft: "#eef6fc"
-    readonly property color warningSoft: "#fbf3db"
+    readonly property color warningSoft: "#eaf7ff"
     readonly property color dangerSoft: "#fde7e9"
 
     readonly property color shadowColor: "#14243a26"

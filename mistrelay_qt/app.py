@@ -4,7 +4,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import QPoint, QUrl
 from PySide6.QtGui import QIcon
 from PySide6.QtQml import QQmlApplicationEngine
 from PySide6.QtQuickControls2 import QQuickStyle
@@ -125,6 +125,9 @@ def build_application_context() -> ApplicationContext:
         }
     )
     websocket_service.statusReceived.connect(app_view_model.handle_status_message)
+    drive_view_model.toastRequested.connect(app_view_model.relayToast)
+    downloads_view_model.toastRequested.connect(app_view_model.relayToast)
+    settings_view_model.toastRequested.connect(app_view_model.relayToast)
 
     return ApplicationContext(
         local_runtime_service=local_runtime_service,
@@ -148,6 +151,17 @@ def attach_context(engine: QQmlApplicationEngine, context: ApplicationContext) -
     root_context.setContextProperty("driveViewModel", context.drive_view_model)
     root_context.setContextProperty("settingsViewModel", context.settings_view_model)
     root_context.setContextProperty("updateViewModel", context.update_view_model)
+
+
+def center_window_on_primary_screen(root: object, application: QApplication) -> None:
+    screen = application.primaryScreen()
+    if screen is None:
+        return
+
+    available_geometry = screen.availableGeometry()
+    x = available_geometry.x() + (available_geometry.width() - root.width()) // 2
+    y = available_geometry.y() + (available_geometry.height() - root.height()) // 2
+    root.setPosition(QPoint(max(available_geometry.x(), x), max(available_geometry.y(), y)))
 
 
 def main() -> int:
@@ -178,6 +192,8 @@ def main() -> int:
     root.setHeight(DEFAULT_WINDOW_HEIGHT)
     root.setMinimumWidth(MIN_WINDOW_WIDTH)
     root.setMinimumHeight(MIN_WINDOW_HEIGHT)
+    center_window_on_primary_screen(root, application)
+    root.show()
 
     context.app_view_model.bootstrap()
     application.aboutToQuit.connect(context.drive_view_model.closePreview)

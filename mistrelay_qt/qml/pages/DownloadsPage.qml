@@ -1231,7 +1231,7 @@ ResponsivePage {
 
                     GridLayout {
                         Layout.fillWidth: true
-                        columns: root.compact ? 1 : 3
+                        columns: root.compact ? 1 : 2
                         columnSpacing: 12
                         rowSpacing: 12
 
@@ -1248,27 +1248,7 @@ ResponsivePage {
                             currentValue: downloadsViewModel.unifiedStatusFilter
                             onValueSelected: downloadsViewModel.setUnifiedStatusFilter(value)
                         }
-
-                        PrimaryButton {
-                            Layout.fillWidth: root.compact
-                            Layout.alignment: root.compact ? Qt.AlignLeft : Qt.AlignRight
-                            text: downloadsViewModel.busy ? "刷新中..." : "刷新"
-                            enabled: !downloadsViewModel.busy
-                            onClicked: downloadsViewModel.refresh()
-                        }
                     }
-                }
-            }
-
-            Loader {
-                active: downloadsViewModel.infoMessage.length > 0
-                sourceComponent: inlineMessageBanner
-
-                onLoaded: {
-                    item.message = Qt.binding(function() {
-                        return downloadsViewModel.infoMessage
-                    })
-                    item.tone = "success"
                 }
             }
 

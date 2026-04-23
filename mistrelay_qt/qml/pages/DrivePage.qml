@@ -14,27 +14,19 @@ ResponsivePage {
 
     readonly property bool showWideDetail: driveViewModel.detailPanelVisible && contentFrameWidth >= 1380
 
-    property var browseItems: [
-        { key: "all", title: "全部", hint: "频道中的所有媒体文件", icon: "drive" },
-        { key: "videos", title: "视频", hint: "在线播放和本地缓存优先", icon: "downloads" },
-        { key: "images", title: "图片", hint: "快速预览图片资源", icon: "dashboard" },
-        { key: "documents", title: "文档", hint: "压缩包、PDF 和普通文件", icon: "settings" }
-    ]
-    property var smartItems: [
-        { key: "flows", title: "全部流", hint: "当前筛选下的完整文件流", icon: "dashboard" },
-        { key: "recent", title: "最近", hint: "近 7 天新增或更新的内容", icon: "downloads" }
+    property var sectionOptions: [
+        { key: "all", label: "全部" },
+        { key: "videos", label: "视频" },
+        { key: "images", label: "图片" },
+        { key: "documents", label: "文档" },
+        { key: "flows", label: "全部流" },
+        { key: "recent", label: "最近" }
     ]
     property var sortOptions: [
         { value: "time_desc", label: "时间（新到旧）" },
         { value: "time_asc", label: "时间（旧到新）" },
         { value: "size_desc", label: "体积（大到小）" },
         { value: "name_asc", label: "名称（A-Z）" }
-    ]
-    property var filterOptions: [
-        { value: "all", label: "全部" },
-        { value: "videos", label: "视频" },
-        { value: "images", label: "图片" },
-        { value: "documents", label: "文档" }
     ]
     property var pageSizeOptions: [10, 30, 60, 100, 200]
 
@@ -43,6 +35,13 @@ ResponsivePage {
     property bool contextCanPreview: false
     property bool contextCanDownload: false
     property bool contextCanDelete: false
+    property var contextMenuActions: [
+        { key: "open" },
+        { key: "preview" },
+        { key: "download" },
+        { key: "delete" },
+        { key: "clearSelection", separatorBefore: true }
+    ]
 
     Component.onCompleted: {
         if (!driveViewModel.busy && driveViewModel.itemsModel.count === 0) {
@@ -81,22 +80,28 @@ ResponsivePage {
     }
 
     function countFor(key) {
-        var stats = driveViewModel.sidebarStats || {}
-        return stats[key] !== undefined ? stats[key] : 0
+        switch (key) {
+        case "all":
+            return root.summaryValue("totalCount")
+        case "videos":
+            return root.summaryValue("videos")
+        case "images":
+            return root.summaryValue("images")
+        case "documents":
+            return root.summaryValue("documents")
+        default:
+            return -1
+        }
+    }
+
+    function sectionChipText(key, label) {
+        var count = root.countFor(key)
+        return count >= 0 ? label + " " + count : label
     }
 
     function summaryValue(key) {
         var stats = driveViewModel.channelStats || {}
         return stats[key] !== undefined ? stats[key] : 0
-    }
-
-    function sortLabel(value) {
-        for (var i = 0; i < root.sortOptions.length; i += 1) {
-            if (root.sortOptions[i].value === value) {
-                return root.sortOptions[i].label
-            }
-        }
-        return "时间（新到旧）"
     }
 
     function prepareContext(path, isDir, canPreview, canDownload, canDelete) {
@@ -112,10 +117,27 @@ ResponsivePage {
 
     function openContextMenu(path, isDir, canPreview, canDownload, canDelete, x, y, sourceItem) {
         prepareContext(path, isDir, canPreview, canDownload, canDelete)
-        var point = sourceItem.mapToItem(root, x, y)
-        contextMenu.x = point.x
-        contextMenu.y = point.y
-        contextMenu.open()
+        var overlay = Overlay.overlay || root
+        var point = sourceItem.mapToItem(overlay, x, y)
+        var desiredX = point.x + 8
+        var desiredY = point.y + 8
+        var menuWidth = contextMenuPopup.width > 0 ? contextMenuPopup.width : contextMenuPopup.implicitWidth
+        var menuHeight = contextMenuPopup.implicitHeight > 0
+                         ? contextMenuPopup.implicitHeight
+                         : (contextMenuPopup.contentItem
+                            ? contextMenuPopup.contentItem.implicitHeight + contextMenuPopup.topPadding + contextMenuPopup.bottomPadding
+                            : 220)
+        var menuMargin = 12
+        var maxX = Math.max(menuMargin, overlay.width - menuWidth - menuMargin)
+        var maxY = Math.max(menuMargin, overlay.height - menuHeight - menuMargin)
+
+        if (contextMenuPopup.opened) {
+            contextMenuPopup.close()
+        }
+
+        contextMenuPopup.x = Math.max(menuMargin, Math.min(maxX, desiredX))
+        contextMenuPopup.y = Math.max(menuMargin, Math.min(maxY, desiredY))
+        contextMenuPopup.open()
     }
 
     function itemSubtitle(item) {
@@ -126,6 +148,129 @@ ResponsivePage {
             return item.subtitle
         }
         return item.kindLabel || ""
+    }
+
+    function listSingleLineText(value, fallback) {
+        var text = value && value.length > 0 ? value : (fallback || "")
+        return text.replace(/[\r\n\t]+/g, " ").replace(/\s+/g, " ").trim()
+    }
+
+    function contextMenuActionText(actionKey) {
+        switch (actionKey) {
+        case "open":
+            return root.contextIsDir ? "打开媒体组" : "打开"
+        case "preview":
+            return "预览"
+        case "download":
+            return root.contextIsDir ? "下载整组" : "下载"
+        case "delete":
+            return root.contextIsDir ? "删除媒体组" : "删除"
+        case "clearSelection":
+            return "清除选择"
+        default:
+            return ""
+        }
+    }
+
+    function contextMenuActionIcon(actionKey) {
+        switch (actionKey) {
+        case "open":
+            return "open"
+        case "preview":
+            return "eye"
+        case "download":
+            return "download"
+        case "delete":
+            return "trash"
+        case "clearSelection":
+            return "clear"
+        default:
+            return "open"
+        }
+    }
+
+    function contextMenuActionTone(actionKey) {
+        switch (actionKey) {
+        case "open":
+        case "preview":
+            return "primary"
+        case "delete":
+            return "danger"
+        default:
+            return "neutral"
+        }
+    }
+
+    function contextMenuActionEnabled(actionKey) {
+        switch (actionKey) {
+        case "preview":
+            return root.contextCanPreview
+        case "download":
+            return root.contextCanDownload
+        case "delete":
+            return root.contextCanDelete
+        case "clearSelection":
+            return driveViewModel.hasSelection
+        default:
+            return root.contextPath.length > 0
+        }
+    }
+
+    function contextMenuActionColor(actionKey, enabled) {
+        if (!enabled) {
+            return ThemeSystem.Theme.textTertiary
+        }
+        switch (root.contextMenuActionTone(actionKey)) {
+        case "primary":
+            return ThemeSystem.Theme.colorPrimary
+        case "danger":
+            return ThemeSystem.Theme.colorDanger
+        default:
+            return ThemeSystem.Theme.textPrimary
+        }
+    }
+
+    function contextMenuActionBackground(actionKey, hovered, pressed, enabled) {
+        if (!enabled) {
+            return "transparent"
+        }
+        if (root.contextMenuActionTone(actionKey) === "danger") {
+            return pressed ? "#f7d6db" : (hovered ? ThemeSystem.Theme.dangerSoft : "transparent")
+        }
+        return pressed ? "#dcecff" : (hovered ? ThemeSystem.Theme.infoSoft : "transparent")
+    }
+
+    function contextMenuActionBorder(actionKey, hovered, pressed, enabled) {
+        if (!enabled || (!hovered && !pressed)) {
+            return "transparent"
+        }
+        if (root.contextMenuActionTone(actionKey) === "danger") {
+            return "#efc0c7"
+        }
+        return "#cfe0f5"
+    }
+
+    function triggerContextMenuAction(actionKey) {
+        contextMenuPopup.close()
+        switch (actionKey) {
+        case "open":
+            driveViewModel.activateItem(root.contextPath)
+            break
+        case "preview":
+            driveViewModel.openPreview(root.contextPath)
+            break
+        case "download":
+            driveViewModel.downloadItem(root.contextPath)
+            break
+        case "delete":
+            driveViewModel.deleteItem(root.contextPath)
+            break
+        case "clearSelection":
+            driveViewModel.clearSelection()
+            break
+        default:
+            break
+        }
     }
 
     Component {
@@ -140,42 +285,119 @@ ResponsivePage {
     }
 
     Loader {
+        visible: false
         active: driveViewModel.previewState.mode === "video" && driveViewModel.previewState.source.length > 0
         sourceComponent: previewPlayerComponent
     }
 
-    Menu {
-        id: contextMenu
+    Popup {
+        id: contextMenuPopup
 
-        MenuItem {
-            text: root.contextIsDir ? "打开媒体组" : "打开"
-            onTriggered: driveViewModel.activateItem(root.contextPath)
+        parent: Overlay.overlay ? Overlay.overlay : root
+        width: 206
+        modal: false
+        focus: true
+        padding: 8
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
+
+        enter: Transition {
+            NumberAnimation { property: "opacity"; from: 0.0; to: 1.0; duration: ThemeSystem.Theme.fastDuration }
+            NumberAnimation { property: "scale"; from: 0.96; to: 1.0; duration: ThemeSystem.Theme.fastDuration }
         }
 
-        MenuItem {
-            text: "预览"
-            enabled: root.contextCanPreview
-            onTriggered: driveViewModel.openPreview(root.contextPath)
+        exit: Transition {
+            NumberAnimation { property: "opacity"; from: 1.0; to: 0.0; duration: 90 }
+            NumberAnimation { property: "scale"; from: 1.0; to: 0.98; duration: 90 }
         }
 
-        MenuItem {
-            text: root.contextIsDir ? "下载整组" : "下载"
-            enabled: root.contextCanDownload
-            onTriggered: driveViewModel.downloadItem(root.contextPath)
+        background: Rectangle {
+            radius: ThemeSystem.Theme.radiusLarge
+            color: ThemeSystem.Theme.acrylicFill
+            border.width: 1
+            border.color: ThemeSystem.Theme.cardBorder
+
+            Rectangle {
+                anchors.fill: parent
+                anchors.margins: 1
+                radius: parent.radius - 1
+                color: "#ffffff66"
+            }
         }
 
-        MenuItem {
-            text: root.contextIsDir ? "删除媒体组" : "删除"
-            enabled: root.contextCanDelete
-            onTriggered: driveViewModel.deleteItem(root.contextPath)
-        }
+        contentItem: ColumnLayout {
+            spacing: 4
 
-        MenuSeparator { }
+            Repeater {
+                model: root.contextMenuActions
 
-        MenuItem {
-            text: "清除选择"
-            enabled: driveViewModel.hasSelection
-            onTriggered: driveViewModel.clearSelection()
+                delegate: ColumnLayout {
+                    required property var modelData
+
+                    Layout.fillWidth: true
+                    spacing: 4
+
+                    Rectangle {
+                        Layout.fillWidth: true
+                        Layout.leftMargin: 6
+                        Layout.rightMargin: 6
+                        visible: modelData.separatorBefore === true
+                        implicitHeight: 1
+                        color: ThemeSystem.Theme.cardBorder
+                    }
+
+                    Button {
+                        id: menuActionButton
+
+                        Layout.fillWidth: true
+                        implicitHeight: 38
+                        enabled: root.contextMenuActionEnabled(modelData.key)
+                        hoverEnabled: true
+                        opacity: enabled ? 1.0 : 0.48
+
+                        background: Rectangle {
+                            radius: 12
+                            color: root.contextMenuActionBackground(modelData.key,
+                                                                    menuActionButton.hovered,
+                                                                    menuActionButton.down,
+                                                                    menuActionButton.enabled)
+                            border.width: 1
+                            border.color: root.contextMenuActionBorder(modelData.key,
+                                                                       menuActionButton.hovered,
+                                                                       menuActionButton.down,
+                                                                       menuActionButton.enabled)
+
+                            Behavior on color {
+                                ColorAnimation { duration: ThemeSystem.Theme.fastDuration }
+                            }
+                        }
+
+                        contentItem: RowLayout {
+                            spacing: 10
+
+                            FluentNavIcon {
+                                Layout.preferredWidth: 18
+                                Layout.preferredHeight: 18
+                                iconName: root.contextMenuActionIcon(modelData.key)
+                                iconColor: root.contextMenuActionColor(modelData.key, menuActionButton.enabled)
+                                iconSize: 16
+                            }
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.contextMenuActionText(modelData.key)
+                                color: root.contextMenuActionColor(modelData.key, menuActionButton.enabled)
+                                font.pixelSize: 13
+                                font.bold: modelData.key === "delete"
+                                elide: Text.ElideRight
+                                verticalAlignment: Text.AlignVCenter
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+                        }
+
+                        onClicked: root.triggerContextMenuAction(modelData.key)
+                    }
+                }
+            }
         }
     }
 
@@ -201,91 +423,6 @@ ResponsivePage {
                 font.pixelSize: 12
                 font.bold: true
                 font.family: ThemeSystem.Theme.fontFamily
-            }
-        }
-    }
-
-    Component {
-        id: navEntryDelegate
-
-        Rectangle {
-            required property var modelData
-
-            Layout.fillWidth: true
-            radius: 22
-            color: driveViewModel.sidebarSection === modelData.key
-                   ? "#dcecff"
-                   : "#ffffff"
-            border.width: 1
-            border.color: driveViewModel.sidebarSection === modelData.key
-                          ? "#a7c8ff"
-                          : ThemeSystem.Theme.cardBorder
-            implicitHeight: 94
-
-            MouseArea {
-                anchors.fill: parent
-                cursorShape: Qt.PointingHandCursor
-                onClicked: driveViewModel.setSidebarSection(modelData.key)
-            }
-
-            RowLayout {
-                anchors.fill: parent
-                anchors.margins: 16
-                spacing: 14
-
-                Rectangle {
-                    Layout.preferredWidth: 38
-                    Layout.preferredHeight: 38
-                    radius: 14
-                    color: driveViewModel.sidebarSection === modelData.key
-                           ? "#ffffff"
-                           : ThemeSystem.Theme.sidebarHoverFill
-
-                    FluentNavIcon {
-                        anchors.centerIn: parent
-                        iconName: modelData.icon
-                        iconColor: driveViewModel.sidebarSection === modelData.key
-                                   ? ThemeSystem.Theme.colorPrimary
-                                   : ThemeSystem.Theme.sidebarTextMuted
-                        iconSize: 18
-                    }
-                }
-
-                ColumnLayout {
-                    Layout.fillWidth: true
-                    spacing: 4
-
-                    RowLayout {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: modelData.title
-                            color: ThemeSystem.Theme.textPrimary
-                            font.pixelSize: 15
-                            font.bold: true
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-
-                        Text {
-                            text: root.countFor(modelData.key)
-                            color: ThemeSystem.Theme.colorPrimary
-                            font.pixelSize: 15
-                            font.bold: true
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: modelData.hint
-                        color: ThemeSystem.Theme.textTertiary
-                        font.pixelSize: 12
-                        wrapMode: Text.WordWrap
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-                }
             }
         }
     }
@@ -595,7 +732,7 @@ ResponsivePage {
             required property string cacheTag
             required property string recentTag
 
-            Layout.fillWidth: true
+            width: listColumn.width
             radius: 18
             color: selected ? "#f7fbff" : "#ffffff"
             border.width: 1
@@ -674,19 +811,25 @@ ResponsivePage {
 
                 ColumnLayout {
                     Layout.fillWidth: true
+                    Layout.minimumWidth: 0
                     spacing: 5
 
                     RowLayout {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         spacing: 8
 
                         Text {
                             Layout.fillWidth: true
+                            Layout.minimumWidth: 0
                             text: rowRoot.title
                             color: ThemeSystem.Theme.textPrimary
                             font.pixelSize: 14
                             font.bold: true
+                            maximumLineCount: 1
+                            wrapMode: Text.NoWrap
                             elide: Text.ElideRight
+                            clip: true
                             font.family: ThemeSystem.Theme.fontFamily
                         }
 
@@ -712,32 +855,48 @@ ResponsivePage {
 
                     Text {
                         Layout.fillWidth: true
-                        text: rowRoot.subtitle
+                        Layout.minimumWidth: 0
+                        text: root.listSingleLineText(rowRoot.subtitle, rowRoot.badgeText)
                         color: ThemeSystem.Theme.textSecondary
                         font.pixelSize: 12
+                        maximumLineCount: 1
+                        wrapMode: Text.NoWrap
                         elide: Text.ElideRight
+                        clip: true
                         font.family: ThemeSystem.Theme.fontFamily
                     }
 
                     Text {
                         Layout.fillWidth: true
+                        Layout.minimumWidth: 0
                         text: rowRoot.sizeText + " · " + rowRoot.timeText
                         color: ThemeSystem.Theme.textTertiary
                         font.pixelSize: 12
+                        maximumLineCount: 1
+                        wrapMode: Text.NoWrap
+                        elide: Text.ElideRight
+                        clip: true
                         font.family: ThemeSystem.Theme.fontFamily
                     }
                 }
 
                 RowLayout {
+                    Layout.alignment: Qt.AlignVCenter
                     spacing: 8
 
-                    Button {
+                    DriveActionButton {
                         text: rowRoot.isDir ? "打开" : "预览"
+                        iconName: rowRoot.isDir ? "open" : "eye"
+                        tone: "primary"
+                        compact: true
                         onClicked: rowRoot.isDir ? driveViewModel.activateItem(rowRoot.path) : driveViewModel.openPreview(rowRoot.path)
                     }
 
-                    Button {
+                    DriveActionButton {
                         text: "下载"
+                        iconName: "download"
+                        tone: "neutral"
+                        compact: true
                         onClicked: driveViewModel.downloadItem(rowRoot.path)
                     }
                 }
@@ -1013,27 +1172,35 @@ ResponsivePage {
                     width: parent.width
                     spacing: 8
 
-                    Button {
+                    DriveActionButton {
                         visible: driveViewModel.selectedItem.canPreview
                         text: "预览"
+                        iconName: "eye"
+                        tone: "primary"
                         onClicked: driveViewModel.openPreview(driveViewModel.selectedItem.path)
                     }
 
-                    Button {
+                    DriveActionButton {
                         visible: driveViewModel.selectedItem.canDownload
                         text: driveViewModel.selectedItem.isDir ? "下载整组" : "下载"
+                        iconName: "download"
+                        tone: "neutral"
                         onClicked: driveViewModel.downloadItem(driveViewModel.selectedItem.path)
                     }
 
-                    Button {
+                    DriveActionButton {
                         visible: driveViewModel.selectedItem.canDelete
                         text: driveViewModel.selectedItem.isDir ? "删除媒体组" : "删除"
+                        iconName: "trash"
+                        tone: "danger"
                         onClicked: driveViewModel.deleteSelected()
                     }
 
-                    Button {
+                    DriveActionButton {
                         visible: driveViewModel.previewState.mode !== "none"
                         text: "关闭预览"
+                        iconName: "close"
+                        tone: "neutral"
                         onClicked: driveViewModel.closePreview()
                     }
                 }
@@ -1042,207 +1209,53 @@ ResponsivePage {
     }
 
     GlassCard {
+        id: summaryCard
+
         Layout.fillWidth: true
         padding: 16
         backgroundColor: "#f8fbff"
         borderColor: "#dbe7f3"
         shadowOpacity: 0.04
+        implicitHeight: summaryRow.implicitHeight + padding * 2
 
         RowLayout {
+            id: summaryRow
             anchors.fill: parent
-            spacing: 12
+            spacing: 16
 
             Text {
+                Layout.fillWidth: true
+                Layout.alignment: Qt.AlignVCenter
                 text: driveViewModel.channelSummary
                 color: ThemeSystem.Theme.textPrimary
                 font.pixelSize: 15
                 font.bold: true
                 font.family: ThemeSystem.Theme.fontFamily
-            }
-
-            Text {
-                text: driveViewModel.usageSummary
-                color: ThemeSystem.Theme.textSecondary
-                font.pixelSize: 13
-                font.family: ThemeSystem.Theme.fontFamily
-            }
-
-            Rectangle {
-                radius: 999
-                color: "#ffffff"
-                border.width: 1
-                border.color: "#cfe2ff"
-                implicitHeight: 28
-                implicitWidth: videoCountLabel.implicitWidth + 18
-
-                Text {
-                    id: videoCountLabel
-                    anchors.centerIn: parent
-                    text: root.summaryValue("videos") + " 视频"
-                    color: ThemeSystem.Theme.colorPrimary
-                    font.pixelSize: 12
-                    font.family: ThemeSystem.Theme.fontFamily
-                }
-            }
-
-            Rectangle {
-                radius: 999
-                color: "#ffffff"
-                border.width: 1
-                border.color: "#cfe2ff"
-                implicitHeight: 28
-                implicitWidth: imageCountLabel.implicitWidth + 18
-
-                Text {
-                    id: imageCountLabel
-                    anchors.centerIn: parent
-                    text: root.summaryValue("images") + " 图片"
-                    color: ThemeSystem.Theme.colorPrimary
-                    font.pixelSize: 12
-                    font.family: ThemeSystem.Theme.fontFamily
-                }
-            }
-
-            Item {
-                Layout.fillWidth: true
-            }
-
-            Button {
-                text: driveViewModel.busy ? "刷新中..." : "刷新"
-                enabled: !driveViewModel.busy
-                onClicked: driveViewModel.refresh()
-            }
-        }
-    }
-
-    GlassCard {
-        Layout.fillWidth: true
-        padding: 14
-        backgroundColor: "#ffffff"
-        borderColor: ThemeSystem.Theme.cardBorder
-        shadowOpacity: 0.05
-
-        RowLayout {
-            anchors.fill: parent
-            spacing: 12
-
-            Button {
-                text: "返回上级"
-                enabled: driveViewModel.canNavigateUp
-                onClicked: driveViewModel.navigateUp()
-            }
-
-            Text {
-                text: "⌂"
-                color: ThemeSystem.Theme.textTertiary
-                font.pixelSize: 14
-                font.family: ThemeSystem.Theme.fontFamily
-            }
-
-            Text {
-                Layout.fillWidth: true
-                text: driveViewModel.breadcrumbText
-                color: ThemeSystem.Theme.textPrimary
-                font.pixelSize: 14
                 elide: Text.ElideRight
-                font.family: ThemeSystem.Theme.fontFamily
             }
 
-            Rectangle {
-                radius: 16
-                color: "#f4f7fb"
-                border.width: 1
-                border.color: ThemeSystem.Theme.cardBorder
-                implicitHeight: 38
-                implicitWidth: 132
+            RowLayout {
+                Layout.alignment: Qt.AlignVCenter
+                spacing: 8
 
-                RowLayout {
-                    anchors.fill: parent
-                    anchors.margins: 4
-                    spacing: 4
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "网格"
-                        flat: true
-                        highlighted: driveViewModel.viewMode === "grid"
-                        onClicked: driveViewModel.setViewMode("grid")
-                    }
-
-                    Button {
-                        Layout.fillWidth: true
-                        text: "列表"
-                        flat: true
-                        highlighted: driveViewModel.viewMode === "list"
-                        onClicked: driveViewModel.setViewMode("list")
-                    }
-                }
-            }
-
-            ComboBox {
-                id: sortCombo
-                model: root.sortOptions
-                textRole: "label"
-                implicitWidth: 168
-
-                Component.onCompleted: {
-                    for (var i = 0; i < root.sortOptions.length; i += 1) {
-                        if (root.sortOptions[i].value === driveViewModel.sortOption) {
-                            currentIndex = i
-                            break
-                        }
-                    }
+                AppTextField {
+                    Layout.preferredWidth: Math.max(240, Math.min(360, summaryCard.width * 0.24))
+                    text: driveViewModel.searchKeyword
+                    placeholderText: "搜索文件名、媒体组标题或说明"
+                    onTextEdited: driveViewModel.setSearchKeyword(text)
+                    onAccepted: driveViewModel.commitSearch()
                 }
 
-                onActivated: driveViewModel.setSortOption(root.sortOptions[currentIndex].value)
-            }
-
-            Button {
-                text: driveViewModel.detailPanelVisible ? "隐藏详情" : "显示详情"
-                onClicked: driveViewModel.toggleDetailPanel()
-            }
-
-            Rectangle {
-                radius: ThemeSystem.Theme.radiusMedium
-                color: "#fff5f5"
-                border.width: 1
-                border.color: "#f3d2d2"
-                implicitHeight: 38
-                implicitWidth: clearText.implicitWidth + 20
-
-                Text {
-                    id: clearText
-                    anchors.centerIn: parent
-                    text: "清空 Telegram"
-                    color: "#b42318"
-                    font.pixelSize: 12
-                    font.bold: true
-                    font.family: ThemeSystem.Theme.fontFamily
-                }
-
-                MouseArea {
-                    anchors.fill: parent
-                    cursorShape: Qt.PointingHandCursor
-                    onClicked: driveViewModel.clearTelegramMedia()
+                DriveIconButton {
+                    iconName: "refresh"
+                    tone: "primary"
+                    enabled: !driveViewModel.busy
+                    spinning: driveViewModel.busy
+                    toolTipText: driveViewModel.busy ? "刷新中..." : "刷新"
+                    onClicked: driveViewModel.refresh()
                 }
             }
         }
-    }
-
-    FluentBanner {
-        Layout.fillWidth: true
-        visible: driveViewModel.busy
-        tone: "info"
-        title: ""
-        description: "正在刷新 Telegram 网盘内容..."
-    }
-
-    FluentBanner {
-        Layout.fillWidth: true
-        visible: driveViewModel.infoMessage.length > 0
-        tone: "success"
-        title: ""
-        description: driveViewModel.infoMessage
     }
 
     FluentBanner {
@@ -1257,149 +1270,6 @@ ResponsivePage {
         Layout.fillWidth: true
         Layout.alignment: Qt.AlignTop
         spacing: 18
-
-        GlassCard {
-            Layout.preferredWidth: root.compact ? root.contentFrameWidth : 222
-            Layout.fillWidth: root.compact
-            Layout.alignment: Qt.AlignTop
-            padding: 18
-            backgroundColor: "#ffffff"
-            borderColor: ThemeSystem.Theme.cardBorder
-            shadowOpacity: 0.06
-            implicitHeight: navColumn.implicitHeight + 36
-
-            ColumnLayout {
-                id: navColumn
-                anchors.fill: parent
-                spacing: 14
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    radius: 22
-                    gradient: Gradient {
-                        orientation: Gradient.Vertical
-                        GradientStop { position: 0.0; color: "#eef6ff" }
-                        GradientStop { position: 1.0; color: "#f7fbff" }
-                    }
-                    border.width: 1
-                    border.color: "#cfe2ff"
-                    implicitHeight: 152
-
-                    Column {
-                        anchors.fill: parent
-                        anchors.margins: 18
-                        spacing: 8
-
-                        Text {
-                            text: "我的网盘"
-                            color: ThemeSystem.Theme.textSecondary
-                            font.pixelSize: 14
-                            font.bold: true
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-
-                        Text {
-                            text: root.summaryValue("totalSize")
-                            color: ThemeSystem.Theme.textPrimary
-                            font.pixelSize: 18
-                            font.bold: true
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-
-                        Text {
-                            text: root.summaryValue("totalCount") + " 个文件"
-                            color: ThemeSystem.Theme.textSecondary
-                            font.pixelSize: 13
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-
-                        Row {
-                            spacing: 8
-
-                            Rectangle {
-                                radius: 999
-                                color: root.toneSoftColor(driveViewModel.sidebarSection === "streaming" ? "primary" : "info")
-                                border.width: 1
-                                border.color: Qt.rgba(root.toneColor(driveViewModel.sidebarSection === "streaming" ? "primary" : "info").r,
-                                                       root.toneColor(driveViewModel.sidebarSection === "streaming" ? "primary" : "info").g,
-                                                       root.toneColor(driveViewModel.sidebarSection === "streaming" ? "primary" : "info").b, 0.20)
-                                implicitHeight: 28
-                                implicitWidth: streamChipText.implicitWidth + 18
-
-                                Text {
-                                    id: streamChipText
-                                    anchors.centerIn: parent
-                                    text: "在线播放"
-                                    color: root.toneColor(driveViewModel.sidebarSection === "streaming" ? "primary" : "info")
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: driveViewModel.setSidebarSection("streaming")
-                                }
-                            }
-
-                            Rectangle {
-                                radius: 999
-                                color: root.toneSoftColor(driveViewModel.sidebarSection === "cached" ? "success" : "primary")
-                                border.width: 1
-                                border.color: Qt.rgba(root.toneColor(driveViewModel.sidebarSection === "cached" ? "success" : "primary").r,
-                                                       root.toneColor(driveViewModel.sidebarSection === "cached" ? "success" : "primary").g,
-                                                       root.toneColor(driveViewModel.sidebarSection === "cached" ? "success" : "primary").b, 0.20)
-                                implicitHeight: 28
-                                implicitWidth: cacheChipText.implicitWidth + 18
-
-                                Text {
-                                    id: cacheChipText
-                                    anchors.centerIn: parent
-                                    text: "本地缓存"
-                                    color: root.toneColor(driveViewModel.sidebarSection === "cached" ? "success" : "primary")
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                }
-
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: driveViewModel.setSidebarSection("cached")
-                                }
-                            }
-                        }
-                    }
-                }
-
-                Text {
-                    text: "浏览"
-                    color: ThemeSystem.Theme.textSecondary
-                    font.pixelSize: 13
-                    font.bold: true
-                    font.family: ThemeSystem.Theme.fontFamily
-                }
-
-                Repeater {
-                    model: root.browseItems
-                    delegate: navEntryDelegate
-                }
-
-                Text {
-                    text: "智能视图"
-                    color: ThemeSystem.Theme.textSecondary
-                    font.pixelSize: 13
-                    font.bold: true
-                    font.family: ThemeSystem.Theme.fontFamily
-                }
-
-                Repeater {
-                    model: root.smartItems
-                    delegate: navEntryDelegate
-                }
-            }
-        }
 
         GlassCard {
             id: workspaceCard
@@ -1427,25 +1297,44 @@ ResponsivePage {
                         Layout.fillWidth: true
                         spacing: 4
 
-                        Text {
-                            text: driveViewModel.workspaceTitle
-                            color: ThemeSystem.Theme.textPrimary
-                            font.pixelSize: 18
-                            font.bold: true
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-
-                        Text {
+                        RowLayout {
                             Layout.fillWidth: true
-                            text: driveViewModel.filterSummary
-                            color: ThemeSystem.Theme.textSecondary
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
-                            font.family: ThemeSystem.Theme.fontFamily
+                            spacing: 10
+
+                            DriveIconButton {
+                                visible: driveViewModel.canNavigateUp
+                                iconName: "back-up"
+                                tone: "neutral"
+                                toolTipText: "返回上级"
+                                onClicked: driveViewModel.navigateUp()
+                            }
+
+                            ColumnLayout {
+                                Layout.fillWidth: true
+                                spacing: 4
+
+                                Text {
+                                    text: driveViewModel.workspaceTitle
+                                    color: ThemeSystem.Theme.textPrimary
+                                    font.pixelSize: 18
+                                    font.bold: true
+                                    font.family: ThemeSystem.Theme.fontFamily
+                                }
+
+                                Text {
+                                    Layout.fillWidth: true
+                                    text: driveViewModel.breadcrumbText
+                                    color: ThemeSystem.Theme.textSecondary
+                                    font.pixelSize: 12
+                                    wrapMode: Text.WordWrap
+                                    font.family: ThemeSystem.Theme.fontFamily
+                                }
+                            }
                         }
                     }
 
-                    Row {
+                    RowLayout {
+                        Layout.alignment: Qt.AlignTop
                         spacing: 8
 
                         Rectangle {
@@ -1488,31 +1377,104 @@ ResponsivePage {
                     }
                 }
 
-                AppTextField {
+                RowLayout {
                     Layout.fillWidth: true
-                    text: driveViewModel.searchKeyword
-                    placeholderText: "搜索文件名、媒体组标题或说明"
-                    onTextEdited: driveViewModel.setSearchKeyword(text)
-                    onAccepted: driveViewModel.commitSearch()
-                }
+                    spacing: 12
 
-                Flow {
-                    Layout.fillWidth: true
-                    width: parent.width
-                    spacing: 8
-                    visible: driveViewModel.showFilesChips
+                    Flow {
+                        Layout.fillWidth: true
+                        width: Math.max(0, workspaceCard.contentWidth - 356)
+                        spacing: 8
 
-                    Repeater {
-                        model: root.filterOptions
+                        Repeater {
+                            model: root.sectionOptions
 
-                        delegate: FluentChip {
-                            required property var modelData
+                            delegate: Item {
+                                required property var modelData
 
-                            text: modelData.label
-                            active: driveViewModel.currentFilter === modelData.value
-                            onClicked: driveViewModel.setCurrentFilter(modelData.value)
+                                implicitHeight: 34
+                                implicitWidth: chipButton.implicitWidth
+
+                                FluentChip {
+                                    id: chipButton
+
+                                    text: root.sectionChipText(modelData.key, modelData.label)
+                                    active: driveViewModel.sidebarSection === modelData.key
+                                    onClicked: driveViewModel.setSidebarSection(modelData.key)
+                                }
+                            }
                         }
                     }
+
+                    RowLayout {
+                        spacing: 8
+
+                        Rectangle {
+                            radius: 16
+                            color: "#f4f7fb"
+                            border.width: 1
+                            border.color: ThemeSystem.Theme.cardBorder
+                            implicitHeight: 38
+                            implicitWidth: 132
+
+                            RowLayout {
+                                anchors.fill: parent
+                                anchors.margins: 4
+                                spacing: 4
+
+                                DriveSegmentButton {
+                                    Layout.fillWidth: true
+                                    text: "网格"
+                                    iconName: "grid"
+                                    selected: driveViewModel.viewMode === "grid"
+                                    onClicked: driveViewModel.setViewMode("grid")
+                                }
+
+                                DriveSegmentButton {
+                                    Layout.fillWidth: true
+                                    text: "列表"
+                                    iconName: "list"
+                                    selected: driveViewModel.viewMode === "list"
+                                    onClicked: driveViewModel.setViewMode("list")
+                                }
+                            }
+                        }
+
+                        DriveComboBox {
+                            id: sortCombo
+                            model: root.sortOptions
+                            textRole: "label"
+                            implicitWidth: 168
+
+                            Component.onCompleted: {
+                                for (var i = 0; i < root.sortOptions.length; i += 1) {
+                                    if (root.sortOptions[i].value === driveViewModel.sortOption) {
+                                        currentIndex = i
+                                        break
+                                    }
+                                }
+                            }
+
+                            onActivated: driveViewModel.setSortOption(root.sortOptions[currentIndex].value)
+                        }
+
+                        DriveActionButton {
+                            text: driveViewModel.detailPanelVisible ? "隐藏详情" : "显示详情"
+                            iconName: "detail"
+                            tone: driveViewModel.detailPanelVisible ? "info" : "neutral"
+                            onClicked: driveViewModel.toggleDetailPanel()
+                        }
+
+                    }
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: driveViewModel.filterSummary
+                    color: ThemeSystem.Theme.textSecondary
+                    font.pixelSize: 12
+                    wrapMode: Text.WordWrap
+                    font.family: ThemeSystem.Theme.fontFamily
                 }
 
                 Rectangle {
@@ -1538,26 +1500,38 @@ ResponsivePage {
                             font.family: ThemeSystem.Theme.fontFamily
                         }
 
-                        Button {
+                        DriveActionButton {
                             text: "打开"
+                            iconName: "open"
+                            tone: "primary"
+                            compact: true
                             enabled: driveViewModel.openEnabled
                             onClicked: driveViewModel.openSelection()
                         }
 
-                        Button {
+                        DriveActionButton {
                             text: "批量下载"
+                            iconName: "download"
+                            tone: "neutral"
+                            compact: true
                             enabled: driveViewModel.batchDownloadEnabled
                             onClicked: driveViewModel.batchDownloadSelected()
                         }
 
-                        Button {
+                        DriveActionButton {
                             text: "批量删除"
+                            iconName: "trash"
+                            tone: "danger"
+                            compact: true
                             enabled: driveViewModel.batchDeleteEnabled
                             onClicked: driveViewModel.batchDeleteSelected()
                         }
 
-                        Button {
+                        DriveActionButton {
                             text: "清除选择"
+                            iconName: "clear"
+                            tone: "warning"
+                            compact: true
                             enabled: driveViewModel.hasSelection
                             onClicked: driveViewModel.clearSelection()
                         }
@@ -1673,8 +1647,10 @@ ResponsivePage {
                                     visible: !driveViewModel.canNavigateUp
                                     spacing: 8
 
-                                    Button {
+                                    DriveActionButton {
                                         text: "上一页"
+                                        tone: "neutral"
+                                        compact: true
                                         enabled: driveViewModel.canPreviousPage
                                         onClicked: driveViewModel.previousPage()
                                     }
@@ -1698,14 +1674,16 @@ ResponsivePage {
                                         }
                                     }
 
-                                    Button {
+                                    DriveActionButton {
                                         text: "下一页"
+                                        tone: "primary"
+                                        compact: true
                                         enabled: driveViewModel.canNextPage
                                         onClicked: driveViewModel.nextPage()
                                     }
                                 }
 
-                                ComboBox {
+                                DriveComboBox {
                                     id: pageSizeCombo
                                     visible: !driveViewModel.canNavigateUp
                                     implicitWidth: 110

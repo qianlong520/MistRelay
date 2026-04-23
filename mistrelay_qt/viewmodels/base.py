@@ -7,6 +7,7 @@ class BaseViewModel(QObject):
     busyChanged = Signal()
     errorMessageChanged = Signal()
     infoMessageChanged = Signal()
+    toastRequested = Signal(str, str)
 
     def __init__(self, parent: QObject | None = None) -> None:
         super().__init__(parent)
@@ -31,6 +32,13 @@ class BaseViewModel(QObject):
             return
         self._info_message = value
         self.infoMessageChanged.emit()
+
+    def _show_toast(self, level: str, message: str) -> None:
+        normalized_level = str(level or "info").strip() or "info"
+        normalized_message = str(message or "").strip()
+        if not normalized_message:
+            return
+        self.toastRequested.emit(normalized_level, normalized_message)
 
     def get_busy(self) -> bool:
         return self._busy

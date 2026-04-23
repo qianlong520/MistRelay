@@ -10,41 +10,64 @@ Rectangle {
     property string currentRoute: "dashboard"
 
     color: ThemeSystem.Theme.sidebarStart
-    border.width: 1
-    border.color: ThemeSystem.Theme.sidebarBorder
-    radius: ThemeSystem.Theme.radiusXLarge
-    implicitWidth: 264
+    border.width: 0
+    radius: 0
+    implicitWidth: 252
+
+    Rectangle {
+        anchors.top: parent.top
+        anchors.bottom: parent.bottom
+        anchors.right: parent.right
+        width: 1
+        color: ThemeSystem.Theme.sidebarBorder
+        opacity: 0.8
+    }
 
     ColumnLayout {
         anchors.fill: parent
-        anchors.margins: 12
+        anchors.leftMargin: 12
+        anchors.rightMargin: 12
+        anchors.topMargin: 0
+        anchors.bottomMargin: 12
         spacing: 0
 
         Rectangle {
             Layout.fillWidth: true
-            Layout.preferredHeight: 82
-            radius: ThemeSystem.Theme.radiusLarge
-            color: "#ffffffde"
-            border.width: 1
-            border.color: ThemeSystem.Theme.cardBorder
+            Layout.preferredHeight: 58
+            radius: 0
+            color: "#f7faff"
+            border.width: 0
+
+            Rectangle {
+                anchors.left: parent.left
+                anchors.right: parent.right
+                anchors.bottom: parent.bottom
+                height: 1
+                color: ThemeSystem.Theme.sidebarBorder
+                opacity: 0.75
+            }
 
             RowLayout {
                 anchors.fill: parent
-                anchors.leftMargin: 18
-                anchors.rightMargin: 18
-                spacing: 14
+                anchors.leftMargin: 16
+                anchors.rightMargin: 16
+                spacing: 12
 
                 Rectangle {
-                    Layout.preferredWidth: 44
-                    Layout.preferredHeight: 44
-                    radius: 14
-                    color: ThemeSystem.Theme.colorPrimary
+                    Layout.preferredWidth: 34
+                    Layout.preferredHeight: 34
+                    radius: 10
+                    color: "#dfefff"
+                    border.width: 1
+                    border.color: "#c3ddf3"
 
-                    FluentNavIcon {
+                    Image {
                         anchors.centerIn: parent
-                        iconName: "dashboard"
-                        iconColor: ThemeSystem.Theme.textOnAccent
-                        iconSize: 20
+                        width: 22
+                        height: 22
+                        source: "../../../desktop/icons/icon.png"
+                        fillMode: Image.PreserveAspectFit
+                        smooth: true
                     }
                 }
 
@@ -54,15 +77,15 @@ Rectangle {
                     Text {
                         text: "MistRelay"
                         color: ThemeSystem.Theme.textPrimary
-                        font.pixelSize: 19
+                        font.pixelSize: 17
                         font.bold: true
                         font.family: ThemeSystem.Theme.fontFamily
                     }
 
                     Text {
-                        text: "Desktop"
+                        text: "客户端"
                         color: ThemeSystem.Theme.textSecondary
-                        font.pixelSize: 12
+                        font.pixelSize: 11
                         font.family: ThemeSystem.Theme.fontFamily
                     }
                 }
@@ -71,7 +94,7 @@ Rectangle {
 
         ColumnLayout {
             Layout.fillWidth: true
-            Layout.topMargin: 14
+            Layout.topMargin: 12
             Layout.leftMargin: 2
             Layout.rightMargin: 2
             spacing: 8

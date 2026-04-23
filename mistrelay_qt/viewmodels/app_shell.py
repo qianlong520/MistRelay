@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
-from PySide6.QtCore import Property, Signal, Slot
+from PySide6.QtCore import Property, QTimer, Signal, Slot
 
 from ..constants import APP_NAME, ROUTE_TITLES, ROUTES
 from ..task_runner import TaskRunner
@@ -11,6 +11,8 @@ from .base import BaseViewModel
 
 
 class AppViewModel(BaseViewModel):
+    _DOWNLOADS_REFRESH_INTERVAL_MS = 5000
+
     currentRouteChanged = Signal()
     loggedInChanged = Signal()
     userDisplayNameChanged = Signal()
@@ -39,20 +41,28 @@ class AppViewModel(BaseViewModel):
         self._connection_state = "disconnected"
         self._refreshers: dict[str, Callable[[], None]] = {}
         self._status_consumers: dict[str, Callable[[dict[str, Any]], None]] = {}
+        self._downloads_refresh_timer = QTimer(self)
+        self._downloads_refresh_timer.setInterval(self._DOWNLOADS_REFRESH_INTERVAL_MS)
+        self._downloads_refresh_timer.timeout.connect(self._refresh_downloads_when_disconnected)
 
         self._websocket_service.connectionStateChanged.connect(self._set_connection_state)
         self._websocket_service.errorRaised.connect(
-            lambda message: self.toastRequested.emit("warning", message)
+            lambda message: self._show_toast("warning", message)
         )
 
     def register_refreshers(self, refreshers: dict[str, Callable[[], None]]) -> None:
         self._refreshers = refreshers
+        self._sync_downloads_refresh_timer()
 
     def register_status_consumers(
         self,
         consumers: dict[str, Callable[[dict[str, Any]], None]],
     ) -> None:
         self._status_consumers = consumers
+
+    @Slot(str, str)
+    def relayToast(self, level: str, message: str) -> None:
+        self._show_toast(level, message)
 
     def bootstrap(self) -> None:
         config = self._config_service.config
@@ -72,20 +82,21 @@ class AppViewModel(BaseViewModel):
         user = payload.get("user") if isinstance(payload, dict) else payload
         self._set_logged_in(user)
         self._websocket_service.start()
-        self.toastRequested.emit("success", "已恢复桌面会话")
+        self._show_toast("success", "已恢复桌面会话")
         self._refresh_current_route()
 
     def _bootstrap_failed(self, message: str) -> None:
         self._set_busy(False)
         self._config_service.clear_user_session()
         self._set_logged_out()
-        self.toastRequested.emit("warning", f"会话已失效：{message}")
+        self._show_toast("warning", f"会话已失效：{message}")
 
     def _set_connection_state(self, state: str) -> None:
         if self._connection_state == state:
             return
         self._connection_state = state
         self.connectionStateChanged.emit()
+        self._sync_downloads_refresh_timer()
 
     def _set_logged_in(self, user: dict[str, Any] | None) -> None:
         username = str((user or {}).get("username") or self._config_service.config.user.username or "管理员")
@@ -94,12 +105,14 @@ class AppViewModel(BaseViewModel):
         self.loggedInChanged.emit()
         self.userDisplayNameChanged.emit()
         self.windowTitleChanged.emit()
+        self._sync_downloads_refresh_timer()
 
     def _set_logged_out(self) -> None:
         self._logged_in = False
         self._user_display_name = ""
         self._connection_state = "disconnected"
         self._current_route = "dashboard"
+        self._sync_downloads_refresh_timer()
         self.loggedInChanged.emit()
         self.userDisplayNameChanged.emit()
         self.currentRouteChanged.emit()
@@ -113,6 +126,7 @@ class AppViewModel(BaseViewModel):
         self.loggedInChanged.emit()
         self.userDisplayNameChanged.emit()
         self.windowTitleChanged.emit()
+        self._sync_downloads_refresh_timer()
         self._websocket_service.start()
         self._refresh_current_route()
 
@@ -122,7 +136,7 @@ class AppViewModel(BaseViewModel):
         self._websocket_service.stop()
         self._login_view_model.resetAfterLogout()
         self._set_logged_out()
-        self.toastRequested.emit("info", "已退出当前桌面会话")
+        self._show_toast("info", "已退出当前桌面会话")
 
     @Slot(str)
     def navigate(self, route: str) -> None:
@@ -135,6 +149,20 @@ class AppViewModel(BaseViewModel):
 
     def _refresh_current_route(self) -> None:
         refresh = self._refreshers.get(self._current_route)
+        if refresh:
+            refresh()
+
+    def _sync_downloads_refresh_timer(self) -> None:
+        should_run = self._logged_in and self._connection_state == "disconnected"
+        if should_run:
+            self._downloads_refresh_timer.start()
+            return
+        self._downloads_refresh_timer.stop()
+
+    def _refresh_downloads_when_disconnected(self) -> None:
+        if not self._logged_in or self._connection_state != "disconnected":
+            return
+        refresh = self._refreshers.get("downloads")
         if refresh:
             refresh()
 

@@ -18,6 +18,41 @@ Item {
 
     Item {
         anchors.fill: parent
+        visible: root.iconName === "home"
+
+        Rectangle {
+            x: root.width * 0.20
+            y: root.height * 0.18
+            width: root.width * 0.60
+            height: root.width * 0.60
+            rotation: 45
+            radius: root.width * 0.08
+            color: root.iconColor
+            transformOrigin: Item.Center
+        }
+
+        Rectangle {
+            x: root.width * 0.22
+            y: root.height * 0.44
+            width: root.width * 0.56
+            height: root.height * 0.34
+            radius: root.width * 0.08
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.44
+            y: root.height * 0.52
+            width: root.width * 0.14
+            height: root.height * 0.26
+            radius: root.width * 0.05
+            color: "#ffffff"
+            opacity: 0.22
+        }
+    }
+
+    Item {
+        anchors.fill: parent
         visible: root.iconName === "dashboard"
 
         Repeater {
@@ -197,6 +232,426 @@ Item {
             y: root.height * 0.50
             width: root.strokeWidth
             height: root.height * 0.18
+            rotation: 45
+            radius: width * 0.5
+            color: root.iconColor
+            transformOrigin: Item.Bottom
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "refresh"
+
+        Rectangle {
+            x: root.width * 0.20
+            y: root.height * 0.18
+            width: root.width * 0.58
+            height: root.height * 0.58
+            radius: width * 0.5
+            color: "transparent"
+            border.width: root.strokeWidth
+            border.color: root.iconColor
+            opacity: 0.92
+        }
+
+        Rectangle {
+            x: root.width * 0.54
+            y: root.height * 0.08
+            width: root.strokeWidth
+            height: root.height * 0.22
+            rotation: -42
+            radius: width * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.64
+            y: root.height * 0.16
+            width: root.strokeWidth
+            height: root.height * 0.22
+            rotation: 46
+            radius: width * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.24
+            y: root.height * 0.70
+            width: root.strokeWidth
+            height: root.height * 0.20
+            rotation: -42
+            radius: width * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.15
+            y: root.height * 0.60
+            width: root.strokeWidth
+            height: root.height * 0.20
+            rotation: 46
+            radius: width * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "back-up"
+
+        Rectangle {
+            x: root.width * 0.22
+            y: root.height * 0.24
+            width: root.strokeWidth
+            height: root.height * 0.34
+            rotation: 45
+            radius: width * 0.5
+            color: root.iconColor
+            transformOrigin: Item.Bottom
+        }
+
+        Rectangle {
+            x: root.width * 0.22
+            y: root.height * 0.48
+            width: root.strokeWidth
+            height: root.height * 0.34
+            rotation: -45
+            radius: width * 0.5
+            color: root.iconColor
+            transformOrigin: Item.Top
+        }
+
+        Rectangle {
+            x: root.width * 0.26
+            y: root.height * 0.50 - root.strokeWidth / 2
+            width: root.width * 0.42
+            height: root.strokeWidth
+            radius: height * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.54
+            y: root.height * 0.22
+            width: root.strokeWidth
+            height: root.height * 0.32
+            radius: width * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "grid"
+
+        Repeater {
+            model: [
+                { "x": 0.12, "y": 0.12 },
+                { "x": 0.55, "y": 0.12 },
+                { "x": 0.12, "y": 0.55 },
+                { "x": 0.55, "y": 0.55 }
+            ]
+
+            delegate: Rectangle {
+                required property var modelData
+
+                x: modelData.x * root.width
+                y: modelData.y * root.height
+                width: root.width * 0.30
+                height: root.height * 0.30
+                radius: root.width * 0.08
+                color: root.iconColor
+            }
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "list"
+
+        Repeater {
+            model: 3
+
+            delegate: Item {
+                required property int index
+
+                readonly property real rowY: root.height * (0.20 + index * 0.30)
+
+                Rectangle {
+                    x: root.width * 0.12
+                    y: parent.rowY
+                    width: root.width * 0.16
+                    height: root.strokeWidth * 1.15
+                    radius: height * 0.5
+                    color: root.iconColor
+                }
+
+                Rectangle {
+                    x: root.width * 0.36
+                    y: parent.rowY
+                    width: root.width * 0.52
+                    height: root.strokeWidth * 1.15
+                    radius: height * 0.5
+                    color: root.iconColor
+                }
+            }
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "detail"
+
+        Rectangle {
+            x: root.width * 0.16
+            y: root.height * 0.14
+            width: root.width * 0.68
+            height: root.height * 0.72
+            radius: root.width * 0.10
+            color: "transparent"
+            border.width: root.strokeWidth
+            border.color: root.iconColor
+        }
+
+        Repeater {
+            model: [
+                { "y": 0.34, "w": 0.42 },
+                { "y": 0.50, "w": 0.50 },
+                { "y": 0.66, "w": 0.34 }
+            ]
+
+            delegate: Rectangle {
+                required property var modelData
+
+                x: root.width * 0.28
+                y: root.height * modelData.y
+                width: root.width * modelData.w
+                height: root.strokeWidth
+                radius: height * 0.5
+                color: root.iconColor
+            }
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "open"
+
+        Rectangle {
+            x: root.width * 0.16
+            y: root.height * 0.30
+            width: root.width * 0.68
+            height: root.height * 0.46
+            radius: root.width * 0.10
+            color: "transparent"
+            border.width: root.strokeWidth
+            border.color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.30
+            y: root.height * 0.18
+            width: root.strokeWidth
+            height: root.height * 0.34
+            rotation: -45
+            radius: width * 0.5
+            color: root.iconColor
+            transformOrigin: Item.Top
+        }
+
+        Rectangle {
+            x: root.width * 0.44
+            y: root.height * 0.18
+            width: root.strokeWidth
+            height: root.height * 0.22
+            radius: width * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.42
+            y: root.height * 0.18
+            width: root.width * 0.24
+            height: root.strokeWidth
+            radius: height * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "download"
+
+        Rectangle {
+            x: root.width * 0.50 - root.strokeWidth / 2
+            y: root.height * 0.12
+            width: root.strokeWidth
+            height: root.height * 0.46
+            radius: width * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.38
+            y: root.height * 0.45
+            width: root.strokeWidth
+            height: root.height * 0.20
+            rotation: -45
+            radius: width * 0.5
+            color: root.iconColor
+            transformOrigin: Item.Top
+        }
+
+        Rectangle {
+            x: root.width * 0.62
+            y: root.height * 0.45
+            width: root.strokeWidth
+            height: root.height * 0.20
+            rotation: 45
+            radius: width * 0.5
+            color: root.iconColor
+            transformOrigin: Item.Top
+        }
+
+        Rectangle {
+            x: root.width * 0.18
+            y: root.height * 0.76
+            width: root.width * 0.64
+            height: root.strokeWidth
+            radius: height * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "trash"
+
+        Rectangle {
+            x: root.width * 0.26
+            y: root.height * 0.32
+            width: root.width * 0.48
+            height: root.height * 0.50
+            radius: root.width * 0.08
+            color: "transparent"
+            border.width: root.strokeWidth
+            border.color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.22
+            y: root.height * 0.22
+            width: root.width * 0.56
+            height: root.strokeWidth
+            radius: height * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.40
+            y: root.height * 0.14
+            width: root.width * 0.20
+            height: root.strokeWidth
+            radius: height * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "clear"
+
+        Rectangle {
+            x: root.width * 0.20
+            y: root.height * 0.20
+            width: root.strokeWidth
+            height: root.height * 0.68
+            rotation: -45
+            radius: width * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.20
+            y: root.height * 0.68
+            width: root.strokeWidth
+            height: root.height * 0.68
+            rotation: -135
+            radius: width * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "eye"
+
+        Rectangle {
+            x: root.width * 0.12
+            y: root.height * 0.34
+            width: root.width * 0.76
+            height: root.height * 0.32
+            radius: height * 0.5
+            color: "transparent"
+            border.width: root.strokeWidth
+            border.color: root.iconColor
+        }
+
+        Rectangle {
+            anchors.centerIn: parent
+            width: root.width * 0.20
+            height: width
+            radius: width * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "close"
+
+        Rectangle {
+            x: root.width * 0.24
+            y: root.height * 0.18
+            width: root.strokeWidth
+            height: root.height * 0.64
+            rotation: -45
+            radius: width * 0.5
+            color: root.iconColor
+        }
+
+        Rectangle {
+            x: root.width * 0.24
+            y: root.height * 0.64
+            width: root.strokeWidth
+            height: root.height * 0.64
+            rotation: -135
+            radius: width * 0.5
+            color: root.iconColor
+        }
+    }
+
+    Item {
+        anchors.fill: parent
+        visible: root.iconName === "chevron-down"
+
+        Rectangle {
+            x: root.width * 0.27
+            y: root.height * 0.38
+            width: root.strokeWidth
+            height: root.height * 0.26
+            rotation: -45
+            radius: width * 0.5
+            color: root.iconColor
+            transformOrigin: Item.Bottom
+        }
+
+        Rectangle {
+            x: root.width * 0.62
+            y: root.height * 0.38
+            width: root.strokeWidth
+            height: root.height * 0.26
             rotation: 45
             radius: width * 0.5
             color: root.iconColor

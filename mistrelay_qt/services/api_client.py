@@ -220,9 +220,6 @@ class ApiClient:
     def delete_telegram_group(self, media_group_id: str) -> dict[str, Any]:
         return self.request("DELETE", f"/telegram/group/{quote(media_group_id, safe='')}")
 
-    def clear_telegram_media(self) -> dict[str, Any]:
-        return self.request("DELETE", "/telegram/all")
-
     def get_config(self, category: str | None = None) -> dict[str, Any]:
         return self.request("GET", "/config", params={"category": category} if category else None)
 

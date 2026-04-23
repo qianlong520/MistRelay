@@ -30,14 +30,23 @@ def is_packaged() -> bool:
 
 
 def repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
+    app_root = Path(__file__).resolve().parents[1]
+    if (app_root / "version.json").exists() and (app_root / "main.py").exists():
+        return app_root
+
+    return app_root.parent
 
 
 def resource_root() -> Path:
     meipass = getattr(sys, "_MEIPASS", None)
     if meipass:
         return Path(meipass)
-    return repo_root() / "desktop-qt"
+
+    root = repo_root()
+    desktop_qt_root = root / "desktop-qt"
+    if desktop_qt_root.exists():
+        return desktop_qt_root
+    return root
 
 
 def app_executable() -> Path:
@@ -60,7 +69,7 @@ def release_metadata() -> ReleaseMetadata:
     payload = _read_release_payload()
     version = str(payload.get("version") or "0.0.0-dev")
     channel = str(payload.get("channel") or "dev")
-    product_name = str(payload.get("product_name") or "MistRelay Desktop Qt")
+    product_name = str(payload.get("product_name") or "MistRelay")
     release_tag_prefix = str(payload.get("release_tag_prefix") or "desktop-qt-v")
     manifest_override = os.getenv("MISTRELAY_QT_UPDATE_MANIFEST_URL")
     manifest_url = str(

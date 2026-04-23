@@ -9,7 +9,7 @@ import "pages"
 ApplicationWindow {
     id: window
 
-    visible: true
+    visible: false
     title: appViewModel.windowTitle
     color: ThemeSystem.Theme.surface
     readonly property bool promptCompact: width < 760
@@ -100,7 +100,7 @@ ApplicationWindow {
 
                 Text {
                     Layout.fillWidth: true
-                    text: "MistRelay Desktop Qt v" + updateViewModel.updateVersion + " 已可用"
+                    text: "MistRelay v" + updateViewModel.updateVersion + " 已可用"
                     color: ThemeSystem.Theme.textPrimary
                     font.pixelSize: 28
                     font.bold: true

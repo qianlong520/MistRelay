@@ -86,14 +86,23 @@ ResponsivePage {
 
         background: Rectangle {
             radius: ThemeSystem.Theme.radiusMedium
-            color: scopeButton.checked ? ThemeSystem.Theme.colorPrimary : "#ffffff"
+            color: scopeButton.checked
+                   ? ThemeSystem.Theme.sidebarActiveFill
+                   : (scopeButton.hovered ? ThemeSystem.Theme.sidebarHoverFill : "#ffffff")
             border.width: 1
-            border.color: scopeButton.checked ? ThemeSystem.Theme.colorPrimary : ThemeSystem.Theme.lineColor
+            border.color: scopeButton.checked
+                          ? "#9dc7f0"
+                          : (scopeButton.hovered ? ThemeSystem.Theme.lineColorStrong : ThemeSystem.Theme.cardBorder)
+
+            Behavior on color {
+                ColorAnimation { duration: ThemeSystem.Theme.fastDuration }
+            }
+
         }
 
         contentItem: Text {
             text: scopeButton.text
-            color: scopeButton.checked ? "#ffffff" : ThemeSystem.Theme.textPrimary
+            color: scopeButton.checked ? ThemeSystem.Theme.colorPrimary : ThemeSystem.Theme.textPrimary
             font.bold: true
             font.family: ThemeSystem.Theme.fontFamily
             horizontalAlignment: Text.AlignHCenter
@@ -114,14 +123,23 @@ ResponsivePage {
 
         background: Rectangle {
             radius: ThemeSystem.Theme.radiusMedium
-            color: filterButton.checked ? ThemeSystem.Theme.colorPrimary : "#ffffff"
+            color: filterButton.checked
+                   ? ThemeSystem.Theme.sidebarActiveFill
+                   : (filterButton.hovered ? ThemeSystem.Theme.sidebarHoverFill : "#ffffff")
             border.width: 1
-            border.color: filterButton.checked ? ThemeSystem.Theme.colorPrimary : ThemeSystem.Theme.lineColor
+            border.color: filterButton.checked
+                          ? "#9dc7f0"
+                          : (filterButton.hovered ? ThemeSystem.Theme.lineColorStrong : ThemeSystem.Theme.cardBorder)
+
+            Behavior on color {
+                ColorAnimation { duration: ThemeSystem.Theme.fastDuration }
+            }
+
         }
 
         contentItem: Text {
             text: filterButton.text
-            color: filterButton.checked ? "#ffffff" : ThemeSystem.Theme.textPrimary
+            color: filterButton.checked ? ThemeSystem.Theme.colorPrimary : ThemeSystem.Theme.textPrimary
             font.bold: filterButton.checked
             font.family: ThemeSystem.Theme.fontFamily
             horizontalAlignment: Text.AlignHCenter
@@ -473,14 +491,6 @@ ResponsivePage {
 
     FluentBanner {
         Layout.fillWidth: true
-        visible: settingsViewModel.infoMessage.length > 0
-        tone: "success"
-        title: "操作成功"
-        description: settingsViewModel.infoMessage
-    }
-
-    FluentBanner {
-        Layout.fillWidth: true
         visible: settingsViewModel.errorMessage.length > 0
         tone: "danger"
         title: "发生错误"
@@ -704,9 +714,10 @@ ResponsivePage {
                     onClicked: updateViewModel.installUpdate()
                 }
 
-                Button {
+                SecondaryButton {
                     visible: updateViewModel.manualUrl.length > 0 && !updateViewModel.canInstallUpdate
                     text: "手动下载安装"
+                    tone: "primary"
                     onClicked: updateViewModel.openManualUpdateUrl()
                 }
             }
@@ -824,9 +835,10 @@ ResponsivePage {
                         onTextEdited: settingsViewModel.setDownloadDir(text)
                     }
 
-                    Button {
+                    SecondaryButton {
                         text: "选择目录"
                         Layout.fillWidth: root.compact
+                        tone: "primary"
                         onClicked: settingsViewModel.pickDownloadDir()
                     }
                 }
@@ -932,13 +944,15 @@ ResponsivePage {
                             onClicked: settingsViewModel.saveServerCategory(root.serverCategory)
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "重新读取"
+                            tone: "primary"
                             onClicked: settingsViewModel.loadServerCategory(root.serverCategory)
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "从 config.yml 重新导入"
+                            tone: "primary"
                             onClicked: settingsViewModel.reloadServerConfig(root.serverCategory)
                         }
                     }
@@ -1066,8 +1080,9 @@ ResponsivePage {
                             onClicked: settingsViewModel.saveRcloneConfigFile()
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "重新读取"
+                            tone: "primary"
                             onClicked: settingsViewModel.loadRcloneConfigFile()
                         }
                     }
@@ -1115,8 +1130,9 @@ ResponsivePage {
                             onClicked: root.managementTab = "app-logs"
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "刷新快照"
+                            tone: "primary"
                             onClicked: settingsViewModel.loadManagementSnapshot()
                         }
                     }
@@ -1257,8 +1273,9 @@ ResponsivePage {
                             onClicked: settingsViewModel.restartDocker()
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "刷新状态"
+                            tone: "primary"
                             onClicked: settingsViewModel.loadDockerStatus()
                         }
                     }
@@ -1319,13 +1336,15 @@ ResponsivePage {
                         Layout.fillWidth: true
                         spacing: 12
 
-                        Button {
+                        SecondaryButton {
                             text: "刷新日志"
+                            tone: "primary"
                             onClicked: settingsViewModel.loadDockerLogs()
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "清空显示"
+                            tone: "warning"
                             onClicked: settingsViewModel.clearDockerLogs()
                         }
                     }
@@ -1425,13 +1444,15 @@ ResponsivePage {
                             onClicked: settingsViewModel.loadAppLogs()
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "下载当前日志"
+                            tone: "primary"
                             onClicked: settingsViewModel.downloadSelectedLogFile()
                         }
 
-                        Button {
+                        SecondaryButton {
                             text: "清空显示"
+                            tone: "warning"
                             onClicked: settingsViewModel.clearAppLogDisplay()
                         }
                     }

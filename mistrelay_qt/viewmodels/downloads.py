@@ -1121,7 +1121,7 @@ class DownloadsViewModel(BaseViewModel):
             self._set_error_message(str(exc))
             return
         self._local_transfers[transfer_id] = status
-        self._set_info_message(f"正在取消: {status['fileName']}")
+        self._show_toast("warning", f"正在取消: {status['fileName']}")
         self._rebuild_models()
 
     @Slot(str)
@@ -1132,7 +1132,7 @@ class DownloadsViewModel(BaseViewModel):
             self._set_error_message(str(exc))
             return
         self._local_transfers[transfer_id] = status
-        self._set_info_message(f"已重新开始下载: {status['fileName']}")
+        self._show_toast("success", f"已重新开始下载: {status['fileName']}")
         self._rebuild_models()
 
     @Slot(str)
@@ -1143,7 +1143,7 @@ class DownloadsViewModel(BaseViewModel):
             self._set_error_message(str(exc))
             return
         self._local_transfers.pop(transfer_id, None)
-        self._set_info_message("已移除本地下载任务")
+        self._show_toast("success", "已移除本地下载任务")
         self._rebuild_models()
 
     @Slot(str)
@@ -1161,7 +1161,7 @@ class DownloadsViewModel(BaseViewModel):
             self._set_error_message(str(exc))
 
     def _handle_server_action_result(self, result: dict[str, Any], fallback_message: str) -> None:
-        self._set_info_message(str(result.get("message") or fallback_message))
+        self._show_toast("success", str(result.get("message") or fallback_message))
         self.refresh()
 
     def _handle_transfer_update(self, payload: dict[str, Any]) -> None:

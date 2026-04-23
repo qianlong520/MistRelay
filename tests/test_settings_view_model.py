@@ -145,6 +145,16 @@ class SettingsViewModelTests(unittest.TestCase):
         self.assertEqual(view_model.appLogText, "line one\nline two\nline three")
         self.assertEqual(view_model.appLogSummary, "3 行日志")
 
+    def test_save_uses_toast_without_persistent_info_message(self) -> None:
+        view_model = self.build_view_model()
+        events: list[tuple[str, str]] = []
+        view_model.toastRequested.connect(lambda level, message: events.append((level, message)))
+
+        view_model.save()
+
+        self.assertEqual(events, [("success", "客户端设置已保存")])
+        self.assertEqual(view_model.infoMessage, "")
+
 
 if __name__ == "__main__":
     unittest.main()

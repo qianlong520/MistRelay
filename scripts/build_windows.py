@@ -7,12 +7,18 @@ import sys
 from pathlib import Path
 
 
-def repo_root() -> Path:
-    return Path(__file__).resolve().parents[2]
-
-
 def desktop_qt_root() -> Path:
-    return repo_root() / "desktop-qt"
+    script_root = Path(__file__).resolve().parents[1]
+    if (script_root / "version.json").exists() and (script_root / "main.py").exists():
+        return script_root
+    return script_root.parent / "desktop-qt"
+
+
+def repo_root() -> Path:
+    qt_root = desktop_qt_root()
+    if (qt_root / "desktop").exists():
+        return qt_root
+    return qt_root.parent
 
 
 def load_version() -> str:
@@ -26,11 +32,11 @@ def load_product_name() -> str:
     import json
 
     payload = json.loads((desktop_qt_root() / "version.json").read_text(encoding="utf-8"))
-    return str(payload.get("product_name") or "MistRelay Desktop Qt")
+    return str(payload.get("product_name") or "MistRelay")
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Build MistRelay Desktop Qt for Windows")
+    parser = argparse.ArgumentParser(description="Build MistRelay for Windows")
     parser.add_argument("--skip-installer", action="store_true", help="Only run PyInstaller")
     parser.add_argument("--clean", action="store_true", help="Remove existing build/dist output first")
     return parser.parse_args()
@@ -54,6 +60,41 @@ def ensure_update_signature_runtime(portable_dir: Path) -> None:
         raise SystemExit("PyInstaller output missing PyNaCl sodium runtime required for update signature verification.")
 
 
+def ensure_installer_assets(qt_root: Path, icon_png: Path, product_name: str) -> tuple[Path, Path]:
+    assets_dir = qt_root / "windows" / "assets"
+    welcome_bitmap = assets_dir / "installer-welcome.bmp"
+    header_bitmap = assets_dir / "installer-header.bmp"
+
+    if not icon_png.exists():
+        raise SystemExit(f"missing icon: {icon_png}")
+
+    icon_mtime = icon_png.stat().st_mtime
+    should_generate = (
+        not welcome_bitmap.exists()
+        or not header_bitmap.exists()
+        or welcome_bitmap.stat().st_mtime < icon_mtime
+        or header_bitmap.stat().st_mtime < icon_mtime
+    )
+    if should_generate:
+        generator = qt_root / "scripts" / "generate_installer_assets.py"
+        command = [
+            sys.executable,
+            str(generator),
+            "--icon",
+            str(icon_png),
+            "--output-dir",
+            str(assets_dir),
+            "--product-name",
+            product_name,
+        ]
+        print("Running:", " ".join(command))
+        subprocess.run(command, cwd=qt_root, check=True)
+
+    if not welcome_bitmap.exists() or not header_bitmap.exists():
+        raise SystemExit("installer artwork generation did not produce the expected bitmap assets.")
+    return welcome_bitmap, header_bitmap
+
+
 def main() -> int:
     args = parse_args()
     version = load_version()
@@ -62,6 +103,7 @@ def main() -> int:
     build_root = qt_root / "build" / "windows"
     dist_root = qt_root / "dist" / "windows"
     icon_path = repo_root() / "desktop" / "icons" / "icon.ico"
+    icon_png = repo_root() / "desktop" / "icons" / "icon.png"
     qml_path = qt_root / "mistrelay_qt" / "qml"
     version_path = qt_root / "version.json"
     desktop_icons = repo_root() / "desktop" / "icons"
@@ -150,7 +192,8 @@ def main() -> int:
         print(f"PyInstaller output: {portable_dir}")
         return 0
 
-    installer_output = dist_root / f"mistrelay-desktop-qt-v{version}-setup.exe"
+    welcome_bitmap, header_bitmap = ensure_installer_assets(qt_root, icon_png, product_name)
+    installer_output = dist_root / f"mistrelay-v{version}-setup.exe"
     makensis = find_makensis()
     nsis_script = qt_root / "windows" / "installer.nsi"
 
@@ -162,6 +205,10 @@ def main() -> int:
         f"/DSOURCE_DIR={portable_dir}",
         f"/DOUTPUT_FILE={installer_output}",
         f"/DINSTALL_DIR_NAME={product_name}",
+        f"/DINSTALLER_ICON={icon_path}",
+        f"/DINSTALLER_WELCOME_BITMAP={welcome_bitmap}",
+        f"/DINSTALLER_HEADER_BITMAP={header_bitmap}",
+        "/DFINISH_RUN_ENABLED=1",
         str(nsis_script),
     ]
     print("Running:", " ".join(str(part) for part in nsis_command))

@@ -512,7 +512,7 @@ class DriveViewModel(BaseViewModel):
 
         kind = self._item_kind(item)
         if kind not in {"image", "video"}:
-            self._set_info_message("当前文件类型暂不支持内置预览")
+            self._show_toast("warning", "当前文件类型暂不支持内置预览")
             return
 
         self._preview_token += 1
@@ -603,14 +603,6 @@ class DriveViewModel(BaseViewModel):
         self._task_runner.submit(
             lambda: self._delete_paths(selected_paths),
             on_success=lambda payload: self._handle_batch_delete_result(payload, selected_paths),
-            on_error=self._set_error_message,
-        )
-
-    @Slot()
-    def clearTelegramMedia(self) -> None:
-        self._task_runner.submit(
-            self._api_client.clear_telegram_media,
-            on_success=lambda result: self._handle_clear_result(result),
             on_error=self._set_error_message,
         )
 
@@ -1258,7 +1250,7 @@ class DriveViewModel(BaseViewModel):
         return f"已缓存 {downloaded} / {total_text}"
 
     def _handle_delete_result(self, result: dict[str, Any], fallback_message: str, removed_paths: set[str]) -> None:
-        self._set_info_message(str(result.get("message") or fallback_message))
+        self._show_toast("success", str(result.get("message") or fallback_message))
         self._selected_paths = [path for path in self._selected_paths if path not in removed_paths]
         self.selectedPathsChanged.emit()
         if self._preview_item_path in removed_paths:
@@ -1275,7 +1267,7 @@ class DriveViewModel(BaseViewModel):
     def _handle_batch_delete_result(self, payload: dict[str, Any], selected_paths: list[str]) -> None:
         deleted_groups = int(payload.get("deletedGroups") or 0)
         deleted_files = int(payload.get("deletedFiles") or 0)
-        self._set_info_message(f"已删除 {deleted_files} 个文件，{deleted_groups} 个媒体组")
+        self._show_toast("success", f"已删除 {deleted_files} 个文件，{deleted_groups} 个媒体组")
         removed = set(selected_paths)
         self._selected_paths = [path for path in self._selected_paths if path not in removed]
         self.selectedPathsChanged.emit()
@@ -1291,7 +1283,7 @@ class DriveViewModel(BaseViewModel):
         self.refresh()
 
     def _handle_clear_result(self, result: dict[str, Any]) -> None:
-        self._set_info_message(str(result.get("message") or "已清空 Telegram 媒体"))
+        self._show_toast("success", str(result.get("message") or "已清空 Telegram 媒体"))
         self._selected_paths = []
         self.selectedPathsChanged.emit()
         self._current_path = "/"
@@ -1331,11 +1323,11 @@ class DriveViewModel(BaseViewModel):
                 queued += 1
 
         if queued > 0 and existing > 0:
-            self._set_info_message(f"已加入下载 {queued} 项，{existing} 项已在队列中")
+            self._show_toast("success", f"已加入下载 {queued} 项，{existing} 项已在队列中")
         elif queued > 0:
-            self._set_info_message(f"已加入本地下载 {queued} 项")
+            self._show_toast("success", f"已加入本地下载 {queued} 项")
         elif existing > 0:
-            self._set_info_message("所选文件已在本地下载队列中")
+            self._show_toast("info", "所选文件已在本地下载队列中")
         self._refresh_cached_paths()
         self._rebuild_visible_items()
 

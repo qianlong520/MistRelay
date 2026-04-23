@@ -4,6 +4,23 @@ import "../theme" as ThemeSystem
 import "../pages"
 
 Item {
+    id: root
+
+    readonly property real currentHeaderRevealProgress: {
+        switch (appViewModel.currentRoute) {
+        case "dashboard":
+            return dashboardPage.headerRevealProgress
+        case "downloads":
+            return downloadsPage.headerRevealProgress
+        case "drive":
+            return drivePage.headerRevealProgress
+        case "settings":
+            return settingsPage.headerRevealProgress
+        default:
+            return 1.0
+        }
+    }
+
     anchors.fill: parent
 
     Rectangle {
@@ -58,7 +75,16 @@ Item {
             spacing: 0
 
             AppHeader {
+                id: appHeader
                 Layout.fillWidth: true
+                revealProgress: root.currentHeaderRevealProgress
+                currentPageText: appViewModel.currentRoute === "dashboard"
+                                 ? ""
+                                 : appViewModel.currentRoute === "downloads"
+                                   ? "\u4efb\u52a1\u4e2d\u5fc3"
+                                   : appViewModel.currentRoute === "drive"
+                                     ? "\u7f51\u76d8\u7ba1\u7406"
+                                     : "\u7cfb\u7edf\u8bbe\u7f6e"
                 title: appViewModel.currentRoute === "dashboard"
                        ? "\u4eea\u8868\u677f"
                        : appViewModel.currentRoute === "downloads"
@@ -66,9 +92,16 @@ Item {
                          : appViewModel.currentRoute === "drive"
                            ? "\u6211\u7684\u7f51\u76d8"
                            : "\u7cfb\u7edf\u8bbe\u7f6e"
-                subtitle: ""
+                subtitle: appViewModel.currentRoute === "dashboard"
+                          ? "\u8fd0\u884c\u6982\u89c8"
+                          : appViewModel.currentRoute === "downloads"
+                            ? "\u4efb\u52a1\u4e0e\u8fdb\u5ea6"
+                            : appViewModel.currentRoute === "drive"
+                              ? "\u6587\u4ef6\u4e0e\u5b58\u50a8"
+                              : "\u504f\u597d\u4e0e\u8fde\u63a5"
                 userName: appViewModel.userDisplayName
                 connectionState: appViewModel.connectionState
+                onHomeRequested: appViewModel.navigate("dashboard")
                 onLogoutRequested: appViewModel.logout()
             }
 
@@ -83,18 +116,22 @@ Item {
                 }
 
                 DashboardPage {
+                    id: dashboardPage
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
                 DownloadsPage {
+                    id: downloadsPage
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
                 DrivePage {
+                    id: drivePage
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
                 SettingsPage {
+                    id: settingsPage
                     Layout.fillWidth: true
                     Layout.fillHeight: true
                 }
