@@ -1,9 +1,9 @@
 {
-  "version": "1.0.0",
+  "version": "1.0.1",
   "channel": "stable",
   "product_name": "MistRelay",
   "release_tag_prefix": "desktop-qt-v",
   "manifest_url": "",
-  "release_feed_url": "https://api.github.com/repos/qianlong520/Telegram_MistRelay/releases?per_page=100",
+  "release_feed_url": "https://api.github.com/repos/qianlong520/MistRelay/releases?per_page=100",
   "verify_key": "Z2ARJPLQx0x20YsrBEGHQFzj1NCRJ11v1Bm4e9YOn0w="
 }

@@ -20,6 +20,7 @@ jobs:
     env:
       PYTHONUTF8: "1"
       MISTRELAY_QT_UPDATE_VERIFY_KEY: ${{ secrets.QT_UPDATE_VERIFY_KEY }}
+      QT_UPDATE_VERIFY_KEY: ${{ secrets.QT_UPDATE_VERIFY_KEY }}
 
     steps:
       - name: Checkout
@@ -62,8 +63,12 @@ jobs:
           $payload = Get-Content version.json -Raw | ConvertFrom-Json
           $payload.version = "${{ steps.release.outputs.version }}"
           $payload.channel = "stable"
-          if ($env:QT_UPDATE_VERIFY_KEY) {
-            $payload.verify_key = $env:QT_UPDATE_VERIFY_KEY
+          $verifyKey = $env:MISTRELAY_QT_UPDATE_VERIFY_KEY
+          if (-not $verifyKey) {
+            $verifyKey = $env:QT_UPDATE_VERIFY_KEY
+          }
+          if ($verifyKey) {
+            $payload.verify_key = $verifyKey
           }
           $payload | ConvertTo-Json -Depth 20 | Set-Content version.json -Encoding UTF8
 

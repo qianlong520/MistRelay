@@ -10,6 +10,7 @@ from pathlib import Path
 
 
 SEMVER_RE = re.compile(r"^[0-9]+\.[0-9]+\.[0-9]+([-.+][0-9A-Za-z.-]+)?$")
+EXPECTED_RELEASE_FEED_URL = "https://api.github.com/repos/qianlong520/MistRelay/releases?per_page=100"
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,6 +47,11 @@ def main() -> int:
         raise SystemExit(f"invalid version in version.json: {version}")
     if not manifest_url and not release_feed_url:
         raise SystemExit("version.json must define manifest_url or release_feed_url")
+    if release_feed_url and release_feed_url != EXPECTED_RELEASE_FEED_URL:
+        raise SystemExit(
+            "version.json release_feed_url must point to the MistRelay release feed: "
+            f"{EXPECTED_RELEASE_FEED_URL}"
+        )
     if release_feed_url and not release_tag_prefix:
         raise SystemExit("version.json is missing release_tag_prefix for release_feed_url mode")
     if (

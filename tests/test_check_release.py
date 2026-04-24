@@ -15,6 +15,12 @@ from scripts import check_release
 
 
 class CheckReleaseVerifyKeyTests(unittest.TestCase):
+    def test_expected_release_feed_points_to_current_repository(self) -> None:
+        self.assertEqual(
+            check_release.EXPECTED_RELEASE_FEED_URL,
+            "https://api.github.com/repos/qianlong520/MistRelay/releases?per_page=100",
+        )
+
     def test_resolve_verify_key_uses_version_payload_when_env_is_missing(self) -> None:
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertEqual(

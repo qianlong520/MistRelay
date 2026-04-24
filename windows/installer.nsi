@@ -1,3 +1,4 @@
+!pragma codepage UTF8
 Unicode True
 ManifestDPIAware True
 RequestExecutionLevel user

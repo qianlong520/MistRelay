@@ -6,8 +6,8 @@ import hashlib
 import json
 import shutil
 import sys
-import tempfile
 import unittest
+from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
 
@@ -20,6 +20,17 @@ if str(PROJECT_ROOT) not in sys.path:
 
 from mistrelay_qt.models import UpdateInfo
 from mistrelay_qt.services.update_service import UpdateService, compare_versions
+
+
+@contextmanager
+def workspace_temp_dir(name: str):
+    path = PROJECT_ROOT / "build" / "tmp" / name
+    shutil.rmtree(path, ignore_errors=True)
+    path.mkdir(parents=True, exist_ok=True)
+    try:
+        yield path
+    finally:
+        shutil.rmtree(path, ignore_errors=True)
 
 
 class UpdateServiceReleaseFeedTests(unittest.TestCase):
@@ -294,8 +305,8 @@ class UpdateServiceNetworkTests(unittest.TestCase):
             return httpx.Response(404, request=request)
 
         captured: list[dict[str, object]] = []
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("mistrelay_qt.services.update_service.updates_root", return_value=Path(temp_dir)):
+        with workspace_temp_dir("update-download-redirect") as temp_dir:
+            with patch("mistrelay_qt.services.update_service.updates_root", return_value=temp_dir):
                 with self._patch_http_client(httpx.MockTransport(handler), captured):
                     downloaded = service.download_update(info)
 
@@ -328,8 +339,8 @@ class UpdateServiceNetworkTests(unittest.TestCase):
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(503, request=request)
 
-        with tempfile.TemporaryDirectory() as temp_dir:
-            with patch("mistrelay_qt.services.update_service.updates_root", return_value=Path(temp_dir)):
+        with workspace_temp_dir("update-download-http-error") as temp_dir:
+            with patch("mistrelay_qt.services.update_service.updates_root", return_value=temp_dir):
                 with self._patch_http_client(httpx.MockTransport(handler), []):
                     with self.assertRaisesRegex(RuntimeError, r"下载安装包失败：HTTP 503"):
                         service.download_update(info)
@@ -413,17 +424,20 @@ class UpdateServiceWindowsInstallerScriptTests(unittest.TestCase):
             verify_key="",
         )
 
-        script_path = service._write_windows_update_script(
-            installer_path=Path(r"C:\Temp\mistrelay-setup.exe"),
-            app_executable=Path(r"C:\Users\demo\AppData\Local\Programs\MistRelay Desktop Qt\MistRelay Desktop Qt.exe"),
-            target_pid=4321,
-        )
-        self.addCleanup(shutil.rmtree, script_path.parent, True)
+        with workspace_temp_dir("update-script") as temp_dir:
+            with patch("mistrelay_qt.services.update_service.tempfile.mkdtemp", return_value=str(temp_dir)):
+                script_path = service._write_windows_update_script(
+                    installer_path=Path(r"C:\Temp\mistrelay-setup.exe"),
+                    app_executable=Path(
+                        r"C:\Users\demo\AppData\Local\Programs\MistRelay Desktop Qt\MistRelay Desktop Qt.exe"
+                    ),
+                    target_pid=4321,
+                )
 
-        script = script_path.read_text(encoding="utf-8")
-        self.assertIn("$installerProcess = Start-Process -FilePath $installer -ArgumentList '/S' -PassThru -Wait", script)
-        self.assertIn("if ($installerProcess.ExitCode -ne 0) { exit $installerProcess.ExitCode }", script)
-        self.assertIn("if (Test-Path $appExe) { Start-Process -FilePath $appExe }", script)
+            script = script_path.read_text(encoding="utf-8")
+            self.assertIn("$installerProcess = Start-Process -FilePath $installer -ArgumentList '/S' -PassThru -Wait", script)
+            self.assertIn("if ($installerProcess.ExitCode -ne 0) { exit $installerProcess.ExitCode }", script)
+            self.assertIn("if (Test-Path $appExe) { Start-Process -FilePath $appExe }", script)
 
 
 if __name__ == "__main__":
