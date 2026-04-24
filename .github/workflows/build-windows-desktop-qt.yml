@@ -76,7 +76,7 @@ jobs:
 
       - name: Run pre-release checks
         shell: pwsh
-        run: python scripts/dev_env.py release-check
+        run: python scripts/dev_env.py release-check --require-update-key
 
       - name: Build installer
         shell: pwsh
@@ -132,8 +132,7 @@ jobs:
           QT_UPDATE_VERIFY_KEY: ${{ secrets.QT_UPDATE_VERIFY_KEY }}
         run: |
           if (-not $env:QT_UPDATE_PRIVATE_KEY) {
-            Write-Host "QT_UPDATE_PRIVATE_KEY is not configured; skipping update manifest generation."
-            exit 0
+            throw "QT_UPDATE_PRIVATE_KEY is not configured; cannot generate required qt-latest.json and qt-latest.json.sig assets."
           }
           $version = "${{ steps.release.outputs.version }}"
           $tag = "${{ steps.release.outputs.tag }}"
@@ -166,6 +165,24 @@ jobs:
               --signature dist/windows/qt-latest.json.sig `
               --public-key $env:QT_UPDATE_VERIFY_KEY
           }
+          $requiredAssets = @("dist/windows/qt-latest.json", "dist/windows/qt-latest.json.sig")
+          foreach ($asset in $requiredAssets) {
+            if (-not (Test-Path $asset)) {
+              throw "Required update asset was not generated: $asset"
+            }
+            if ((Get-Item $asset).Length -le 0) {
+              throw "Required update asset is empty: $asset"
+            }
+          }
+          $assetDir = "dist/windows/release-assets"
+          New-Item -ItemType Directory -Force -Path $assetDir | Out-Null
+          Copy-Item $installer $assetDir
+          Copy-Item "dist/windows/qt-latest.json" $assetDir
+          Copy-Item "dist/windows/qt-latest.json.sig" $assetDir
+          $patch = "${{ steps.patch.outputs.patch }}"
+          if ($patch -and (Test-Path $patch)) {
+            Copy-Item $patch $assetDir
+          }
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
@@ -173,7 +190,5 @@ jobs:
           tag_name: ${{ steps.release.outputs.tag }}
           name: MistRelay v${{ steps.release.outputs.version }}
           generate_release_notes: true
-          files: |
-            dist/windows/mistrelay-v${{ steps.release.outputs.version }}-setup.exe
-            dist/windows/qt-latest.json*
-            dist/windows/qt-patch-*.zip
+          fail_on_unmatched_files: true
+          files: dist/windows/release-assets/*

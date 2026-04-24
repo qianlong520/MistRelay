@@ -1,192 +1,152 @@
-# MistRelay Desktop Qt
+﻿# MistRelay Windows 桌面客户端
 
-`desktop-qt/` 是 MistRelay 的独立 Windows Beta 客户端，基于 `PySide6 + Qt Quick/QML`。
-它与现有 `desktop/` Tauri 客户端并行发布，使用独立 tag、安装包和更新清单，不接管现有正式版升级链路。
+MistRelay 是面向 Windows 的正式桌面客户端，基于 `PySide6 + Qt Quick/QML` 构建，用于连接 MistRelay 服务端并完成任务管理、网盘浏览、本地下载、运行状态查看和客户端更新。
 
-## 当前能力
+当前正式版本以 `version.json` 为版本源，通过 GitHub Releases 发布安装包、更新清单和文件级热更补丁。客户端支持签名校验、整包静默安装更新，以及优先使用文件级补丁的轻量热更新。
 
-- 登录、会话恢复、Dashboard、任务中心、Telegram 网盘、本地下载与预览
-- 客户端连接 / 代理 / 下载配置
-- 服务端分类配置读取、保存、从 `config.yml` 重新导入
-- Rclone 配置文件读取与保存
-- Docker 状态、Docker 日志、系统资源、应用日志
-- 独立 `qt-latest.json` 更新清单、签名校验、Windows 静默安装更新
+## 核心能力
 
-## 版本与发布
+- 登录、会话恢复、Dashboard 概览和任务状态查看。
+- 下载管理、Telegram 网盘浏览、本地下载与预览。
+- 服务端连接配置、代理配置、下载参数和缓存目录配置。
+- 服务端分类配置读取、保存，以及从 `config.yml` 重新导入。
+- Rclone 配置文件读取与保存。
+- Docker 状态、Docker 日志、系统资源和应用日志查看。
+- Windows 自动更新：优先文件级热更补丁，必要时回退整包安装器更新。
 
-- 版本源：`version.json`
-- 发布 tag：`desktop-qt-v<semver>`
-- Release 资产：
-  - `mistrelay-desktop-qt-v<version>-setup.exe`
-  - `qt-latest.json`
-  - `qt-latest.json.sig`
+## 安装与运行
 
-`version.json` 里的 `verify_key` 是 Qt 更新公钥，格式为 `Ed25519 VerifyKey` 原始 32 字节的 base64，推荐直接提交到仓库。
-GitHub Actions 使用独立私钥 `QT_UPDATE_PRIVATE_KEY` 生成 `qt-latest.json.sig`，并优先使用 `QT_UPDATE_VERIFY_KEY` 覆盖公钥；如果未设置覆盖值，则回退到 `version.json.verify_key`，必要时再根据私钥推导公钥写入打包产物。
-Beta 客户端不会依赖 GitHub 的 `releases/latest/download`，而是通过 `release_feed_url` 从 GitHub Releases API 中筛选 `desktop-qt-v*` 的最新资产。
+### 用户安装
 
-## 目录结构
+从 GitHub Release 下载当前版本安装包：
 
-- `main.py`: Qt 客户端入口
-- `version.json`: Qt 客户端版本与更新通道元数据
-- `mistrelay_qt/app.py`: 应用装配、QML 上下文和生命周期
-- `mistrelay_qt/services/`: HTTP、WS、更新、本地运行时服务
-- `mistrelay_qt/viewmodels/`: 页面状态和命令
-- `mistrelay_qt/qml/`: QML 页面、组件和主题
-- `scripts/check_release.py`: 本地预发布检查
-- `scripts/build_windows.py`: PyInstaller + NSIS Windows 构建入口
-- `scripts/release_manifest.py`: 更新清单生成、验签、keygen
-- `windows/installer.nsi`: Windows 安装器模板
+- `mistrelay-v<version>-setup.exe`
 
-## 本地开发环境
+安装器默认安装到当前用户目录：
 
-### 推荐基线
+```text
+%LOCALAPPDATA%\Programs\MistRelay
+```
+
+安装完成后可通过桌面快捷方式或开始菜单启动。
+
+### 本地运行
+
+开发环境可直接运行源码：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/dev_env.py run
+```
+
+如果要避免污染本机已有配置和缓存，可使用隔离模式：
+
+```powershell
+.\.venv\Scripts\python.exe scripts/dev_env.py run --isolated
+```
+
+## 配置与缓存路径
+
+客户端会使用独立的 Qt 配置文件：
+
+- Windows 配置：`%APPDATA%\MistRelay\desktop-client-qt.json`
+- Windows 缓存：`%LOCALAPPDATA%\MistRelay`
+- 更新缓存：`%LOCALAPPDATA%\MistRelay\updates`
+- 更新回滚备份：`%LOCALAPPDATA%\MistRelay\update-backups`
+
+开发隔离模式会把配置和缓存写入仓库内：
+
+- `.local/config`
+- `.local/cache`
+
+## 更新能力概览
+
+正式版客户端通过 `qt-latest.json` 获取更新信息，并用 `qt-latest.json.sig` 验证清单签名。
+
+更新策略：
+
+- 优先使用 `qt-patch-<from>-to-<to>.zip` 文件级热更补丁。
+- QML、主题、图片、JSON 等可安全替换资源可在下载后立即应用。
+- `exe`、`dll`、`pyd` 等运行中可能被锁定的文件会通过外部脚本在重启阶段替换。
+- 补丁不适用、校验失败或应用失败时，保留现有客户端并回退到整包安装器更新。
+
+详细发布、热更、回滚和排障说明见：[`docs/更新文档.md`](docs/更新文档.md)。
+
+## 本地开发
+
+### 环境要求
 
 - Windows 10/11 x64
 - Python `3.11.x` x64
 - `pip`
-- 打包安装器时额外需要 `NSIS`（提供 `makensis.exe`）
+- NSIS（仅构建安装器时需要，提供 `makensis.exe`）
 
-CI 当前使用 `Python 3.11` 构建 Windows 客户端，建议本地也对齐这个版本，避免 `PySide6` 和 `PyInstaller` 在新版本 Python 上出现兼容差异。
-
-### 一键初始化
+### 初始化环境
 
 ```powershell
-cd desktop-qt
 python scripts/dev_env.py bootstrap
 .\.venv\Scripts\python.exe scripts/dev_env.py doctor
 ```
 
-`bootstrap` 会自动：
-
-- 创建 `desktop-qt/.venv`
-- 升级 `pip`
-- 安装 `requirements.txt` 中的依赖
-
-`doctor` 会检查：
-
-- Python 版本是否符合推荐基线
-- `PySide6`、`httpx`、`websockets`、`PyNaCl`、`PyInstaller` 是否已安装
-- `version.json`、应用图标是否齐全
-- `makensis` 是否可用
-
-### 隔离本地配置和缓存
-
-客户端默认会读取旧桌面端配置 `%APPDATA%/MistRelay/desktop-client.json`，并迁移到 Qt 独立配置：
-
-- Windows: `%APPDATA%/MistRelay/desktop-client-qt.json`
-- Linux/macOS 开发环境: `~/.config/MistRelay/desktop-client-qt.json`
-
-如果你不想污染本机现有配置，开发时可以使用仓库内隔离目录：
-
-```powershell
-cd desktop-qt
-.\.venv\Scripts\python.exe scripts/dev_env.py run --isolated
-```
-
-这会把配置和缓存写到：
-
-- `desktop-qt/.local/config`
-- `desktop-qt/.local/cache`
-
-### 本地运行
-
-```powershell
-cd desktop-qt
-.\.venv\Scripts\python.exe scripts/dev_env.py run
-```
-
-也可以手动激活虚拟环境后直接运行：
-
-```powershell
-cd desktop-qt
-.\.venv\Scripts\Activate.ps1
-python main.py
-```
-
-## 本地测试与预发布检查
+`bootstrap` 会创建 `.venv` 并安装 `requirements.txt` 中的依赖。
 
 ### 单元测试
 
 ```powershell
-cd desktop-qt
 .\.venv\Scripts\python.exe scripts/dev_env.py test
 ```
 
-### 预发布检查
-
-```powershell
-cd desktop-qt
-.\.venv\Scripts\python.exe scripts/dev_env.py release-check
-```
-
-如果要强制检查更新公钥已配置：
+### 发布前检查
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/dev_env.py release-check --require-update-key
 ```
 
-如果要临时指向一个手动托管的更新清单，可以覆盖：
-
-```powershell
-$env:MISTRELAY_QT_UPDATE_MANIFEST_URL = "https://example.com/qt-latest.json"
-.\.venv\Scripts\python.exe scripts/dev_env.py release-check
-```
+发布前检查会验证版本信息、更新源、公钥配置、Python 编译和单元测试。
 
 ## Windows 构建
 
-### 仅验证 PyInstaller 产物
+仅验证 PyInstaller 产物：
 
 ```powershell
-cd desktop-qt
 .\.venv\Scripts\python.exe scripts/dev_env.py build --clean --skip-installer
 ```
 
-### 生成 Windows 安装包
-
-先确保本机已安装 `NSIS`，并且 `makensis.exe` 能被下面这条命令检测到：
+生成正式 Windows 安装包：
 
 ```powershell
-cd desktop-qt
 .\.venv\Scripts\python.exe scripts/dev_env.py doctor --build
 .\.venv\Scripts\python.exe scripts/dev_env.py build --clean
 ```
 
-该脚本会：
+构建产物位于：
 
-- 用 `PyInstaller` 生成 `onedir` 产物
-- 打包 QML、图标和 `version.json`
-- 调用 NSIS 生成 Windows 安装包
+- PyInstaller onedir：`dist/windows/pyinstaller/MistRelay`
+- 安装器：`dist/windows/mistrelay-v<version>-setup.exe`
 
-## 更新密钥
+## 发布入口
 
-生成一套新的 Qt 更新密钥：
+正式发布使用 GitHub Actions：`.github/workflows/build-windows-desktop-qt.yml`。
+
+推送 tag 后自动触发：
 
 ```powershell
-cd desktop-qt
-python scripts/release_manifest.py keygen --output-dir build/update-keys
+git tag desktop-qt-v<semver>
+git push origin desktop-qt-v<semver>
 ```
 
-生成结果：
+Release 资产包括：
 
-- `qt-update-private.key`: 放到 GitHub Secret `QT_UPDATE_PRIVATE_KEY`
-- `qt-update-public.key`: 推荐把内容写入 `version.json.verify_key`；也可以配置成 GitHub Secret `QT_UPDATE_VERIFY_KEY` 作为覆盖值
+- `mistrelay-v<version>-setup.exe`
+- `qt-latest.json`
+- `qt-latest.json.sig`
+- `qt-patch-<from>-to-<to>.zip`（有上一版本 tag 且配置签名私钥时生成）
 
-## GitHub Actions
-
-工作流文件：`.github/workflows/build-windows-desktop-qt.yml`
-
-需要的 Secrets：
+需要配置的 GitHub Secrets：
 
 - `QT_UPDATE_PRIVATE_KEY`
-- `QT_UPDATE_VERIFY_KEY`（可选，用于覆盖 `version.json.verify_key`）
+- `QT_UPDATE_VERIFY_KEY`
 
-推送 `desktop-qt-v<semver>` tag 后会自动：
+## 相关文档
 
-- 同步 `version.json` 版本号
-- 解析并注入 Qt 更新公钥
-- 运行本地预发布检查
-- 构建 Windows 安装包
-- 生成并签名 `qt-latest.json`
-- 校验清单、签名、安装包 hash 和大小
-- 创建 GitHub Release
+- 更新发布与排障：[`docs/更新文档.md`](docs/更新文档.md)
+- 后端 API：[`backend-api.md`](backend-api.md)

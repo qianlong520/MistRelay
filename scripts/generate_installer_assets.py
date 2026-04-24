@@ -6,12 +6,24 @@ import sys
 from pathlib import Path
 
 from PySide6.QtCore import QRect, QRectF, Qt
-from PySide6.QtGui import QGuiApplication
-from PySide6.QtGui import QColor, QFont, QImage, QLinearGradient, QPainter
+from PySide6.QtGui import QColor, QFont, QFontDatabase, QGuiApplication, QImage, QLinearGradient, QPainter
 
 
 WELCOME_SIZE = (164, 314)
 HEADER_SIZE = (150, 57)
+FONT_FALLBACKS = ("Microsoft YaHei UI", "Microsoft YaHei", "SimHei", "Segoe UI")
+WINDOWS_FONT_PATHS = (
+    Path(r"C:\Windows\Fonts\msyh.ttc"),
+    Path(r"C:\Windows\Fonts\msyhbd.ttc"),
+    Path(r"C:\Windows\Fonts\msyhl.ttc"),
+    Path(r"C:\Windows\Fonts\simhei.ttf"),
+    Path(r"C:\Windows\Fonts\simsun.ttc"),
+    Path(r"C:\Windows\Fonts\NotoSansSC-VF.ttf"),
+)
+TEXT_DESKTOP_CLIENT = "\u684c\u9762\u5ba2\u6237\u7aef"
+TEXT_INSTALL_WIZARD = "\u5b89\u88c5\u5411\u5bfc"
+TEXT_LIGHT_SECURE_AUTO_UPDATE = "\u8f7b\u91cf\u3001\u5b89\u5168\u3001\u81ea\u52a8\u66f4\u65b0"
+_REGISTERED_FONT_FAMILY = ""
 
 
 def parse_args() -> argparse.Namespace:
@@ -20,6 +32,40 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output-dir", required=True, type=Path, help="Directory for generated BMP assets")
     parser.add_argument("--product-name", default="MistRelay", help="Product name shown in installer artwork")
     return parser.parse_args()
+
+
+def _register_chinese_fonts() -> None:
+    global _REGISTERED_FONT_FAMILY
+    if _REGISTERED_FONT_FAMILY:
+        return
+    for font_path in WINDOWS_FONT_PATHS:
+        if not font_path.exists():
+            continue
+        font_id = QFontDatabase.addApplicationFont(str(font_path))
+        if font_id < 0:
+            continue
+        families = QFontDatabase.applicationFontFamilies(font_id)
+        if families:
+            _REGISTERED_FONT_FAMILY = families[0]
+            return
+
+
+def _font_family() -> str:
+    _register_chinese_fonts()
+    if _REGISTERED_FONT_FAMILY:
+        return _REGISTERED_FONT_FAMILY
+    available_families = set(QFontDatabase.families())
+    for family in FONT_FALLBACKS:
+        if family in available_families:
+            return family
+    return FONT_FALLBACKS[-1]
+
+
+def _font(point_size: int, *, bold: bool = False) -> QFont:
+    font = QFont(_font_family())
+    font.setPointSize(point_size)
+    font.setBold(bold)
+    return font
 
 
 def _scaled_icon(icon_path: Path, size: int) -> QImage:
@@ -79,28 +125,23 @@ def generate_welcome_bitmap(icon_path: Path, output_path: Path, product_name: st
     icon = _scaled_icon(icon_path, 58)
     _draw_icon_card(painter, icon, QRect(47, 64, 70, 70), 18)
 
-    title_font = QFont("Segoe UI", 15)
-    title_font.setBold(True)
-    painter.setFont(title_font)
+    painter.setFont(_font(15, bold=True))
     painter.setPen(QColor("#12324a"))
     painter.drawText(QRectF(10, 154, width - 20, 28), Qt.AlignmentFlag.AlignCenter, product_name)
 
-    subtitle_font = QFont("Segoe UI", 8)
-    subtitle_font.setBold(True)
-    painter.setFont(subtitle_font)
+    painter.setFont(_font(8, bold=True))
     painter.setPen(QColor("#38627d"))
-    painter.drawText(QRectF(12, 184, width - 24, 20), Qt.AlignmentFlag.AlignCenter, "Desktop Client")
+    painter.drawText(QRectF(12, 184, width - 24, 20), Qt.AlignmentFlag.AlignCenter, TEXT_DESKTOP_CLIENT)
 
     painter.setPen(QColor("#6aa9db"))
     painter.drawLine(38, 226, width - 38, 226)
 
-    caption_font = QFont("Segoe UI", 7)
-    painter.setFont(caption_font)
+    painter.setFont(_font(7))
     painter.setPen(QColor("#4a6d84"))
     painter.drawText(
         QRectF(18, 244, width - 36, 44),
         Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop | Qt.TextFlag.TextWordWrap,
-        "Lightweight relay workspace",
+        TEXT_LIGHT_SECURE_AUTO_UPDATE,
     )
 
     painter.end()
@@ -128,16 +169,13 @@ def generate_header_bitmap(icon_path: Path, output_path: Path, product_name: str
     icon = _scaled_icon(icon_path, 26)
     _draw_icon_card(painter, icon, QRect(10, 10, 36, 36), 10)
 
-    title_font = QFont("Segoe UI", 10)
-    title_font.setBold(True)
-    painter.setFont(title_font)
+    painter.setFont(_font(10, bold=True))
     painter.setPen(QColor("#12324a"))
     painter.drawText(QRectF(54, 11, 88, 18), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, product_name)
 
-    subtitle_font = QFont("Segoe UI", 7)
-    painter.setFont(subtitle_font)
+    painter.setFont(_font(7))
     painter.setPen(QColor("#38627d"))
-    painter.drawText(QRectF(55, 29, 86, 14), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, "Installer")
+    painter.drawText(QRectF(55, 29, 86, 14), Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter, TEXT_INSTALL_WIZARD)
 
     painter.end()
     _save_bitmap(image, output_path)
@@ -154,6 +192,7 @@ def generate_installer_assets(icon_path: Path, output_dir: Path, product_name: s
 def main() -> int:
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     app = QGuiApplication.instance() or QGuiApplication(sys.argv)
+    _register_chinese_fonts()
     args = parse_args()
     welcome_path, header_path = generate_installer_assets(args.icon, args.output_dir, args.product_name)
     print(f"Generated: {welcome_path}")

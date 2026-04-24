@@ -1,5 +1,5 @@
 {
-  "version": "1.0.2",
+  "version": "1.0.3",
   "channel": "stable",
   "product_name": "MistRelay",
   "release_tag_prefix": "desktop-qt-v",
