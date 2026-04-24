@@ -208,7 +208,7 @@ class SettingsViewModel(BaseViewModel):
             threads_per_download=self._threads_per_download,
             cache_dir=self._cache_dir,
         )
-        self._show_toast("success", "瀹㈡埛绔缃凡淇濆瓨")
+        self._show_toast("success", "客户端设置已保存")
         self.refreshCacheStats()
     @Slot()
     def pickDownloadDir(self) -> None:

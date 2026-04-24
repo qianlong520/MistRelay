@@ -29,7 +29,7 @@ def venv_python() -> Path:
 
 
 def temp_root() -> Path:
-    return desktop_qt_root() / ".local" / "tmp"
+    return desktop_qt_root() / "build" / "tmp"
 
 
 def parse_args() -> argparse.Namespace:
@@ -149,7 +149,7 @@ def doctor(args: argparse.Namespace) -> int:
         print_status("FAIL", "version.json", f"missing: {version_path}")
         exit_code = 1
 
-    icon_path = desktop_qt_root().parent / "desktop" / "icons" / "icon.ico"
+    icon_path = desktop_qt_root() / "desktop" / "icons" / "icon.ico"
     if icon_path.exists():
         print_status("OK", "icon.ico", str(icon_path))
     else:
@@ -212,9 +212,9 @@ def build_env(*, isolated: bool) -> dict[str, str]:
     env = os.environ.copy()
     temp_dir = temp_root()
     temp_dir.mkdir(parents=True, exist_ok=True)
-    env.setdefault("TMP", str(temp_dir))
-    env.setdefault("TEMP", str(temp_dir))
-    env.setdefault("TMPDIR", str(temp_dir))
+    env["TMP"] = str(temp_dir)
+    env["TEMP"] = str(temp_dir)
+    env["TMPDIR"] = str(temp_dir)
     if isolated:
         local_root = desktop_qt_root() / ".local"
         config_root = local_root / "config"

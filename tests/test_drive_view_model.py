@@ -51,6 +51,9 @@ class StubLocalRuntimeService:
     def list_download_statuses(self) -> list[dict]:
         return []
 
+    def preview_cache_root(self) -> Path:
+        return PROJECT_ROOT / ".local" / "preview"
+
     def prepare_preview_file(self, **kwargs) -> dict:
         self.preview_requests.append(kwargs)
         return {"localPath": "E:/MistRelay/.local/preview/image.jpg"}

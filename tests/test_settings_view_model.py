@@ -61,6 +61,20 @@ class StubLocalRuntimeService:
         return
 
 
+class StubLocalCacheService:
+    def cache_root(self) -> Path:
+        return PROJECT_ROOT / ".local" / "preview"
+
+    def scan(self) -> dict:
+        return {"totalSize": 0, "fileCount": 0, "itemCount": 0, "items": []}
+
+    def clear(self) -> dict:
+        return {"totalSize": 0, "fileCount": 0, "itemCount": 0, "items": []}
+
+    def open_cache_root(self) -> None:
+        return
+
+
 class StubUpdateService:
     def check_for_updates(self):
         raise RuntimeError("not used in these tests")
@@ -82,6 +96,7 @@ class SettingsViewModelTests(unittest.TestCase):
         return SettingsViewModel(
             api_client=StubApiClient(),
             config_service=StubConfigService(),
+            local_cache_service=StubLocalCacheService(),
             local_runtime_service=StubLocalRuntimeService(),
             update_service=StubUpdateService(),
             task_runner=ImmediateTaskRunner(),

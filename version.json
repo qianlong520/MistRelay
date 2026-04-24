@@ -1,6 +1,6 @@
 {
-  "version": "0.2.15-beta.10",
-  "channel": "beta",
+  "version": "1.0.0",
+  "channel": "stable",
   "product_name": "MistRelay",
   "release_tag_prefix": "desktop-qt-v",
   "manifest_url": "",

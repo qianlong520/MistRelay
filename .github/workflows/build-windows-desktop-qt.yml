@@ -1,0 +1,115 @@
+﻿name: Build Windows Desktop Qt
+
+on:
+  push:
+    tags:
+      - "desktop-qt-v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release version, for example 1.0.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"
+      MISTRELAY_QT_UPDATE_VERIFY_KEY: ${{ secrets.QT_UPDATE_VERIFY_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve version
+        id: release
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            $version = "${{ inputs.version }}"
+            $tag = "desktop-qt-v$version"
+          } else {
+            $tag = "${{ github.ref_name }}"
+            $version = $tag -replace '^desktop-qt-v', ''
+          }
+          if ($version -notmatch '^\d+\.\d+\.\d+([-.+][0-9A-Za-z.-]+)?$') {
+            throw "Invalid version: $version"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "tag=$tag" >> $env:GITHUB_OUTPUT
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Install NSIS
+        run: choco install nsis -y --no-progress
+
+      - name: Sync version metadata
+        shell: pwsh
+        run: |
+          $payload = Get-Content version.json -Raw | ConvertFrom-Json
+          $payload.version = "${{ steps.release.outputs.version }}"
+          $payload.channel = "stable"
+          if ($env:QT_UPDATE_VERIFY_KEY) {
+            $payload.verify_key = $env:QT_UPDATE_VERIFY_KEY
+          }
+          $payload | ConvertTo-Json -Depth 20 | Set-Content version.json -Encoding UTF8
+
+      - name: Run pre-release checks
+        shell: pwsh
+        run: python scripts/dev_env.py release-check --require-update-key
+
+      - name: Build installer
+        shell: pwsh
+        run: python scripts/dev_env.py build --clean
+
+      - name: Generate update manifest
+        shell: pwsh
+        env:
+          QT_UPDATE_PRIVATE_KEY: ${{ secrets.QT_UPDATE_PRIVATE_KEY }}
+          QT_UPDATE_VERIFY_KEY: ${{ secrets.QT_UPDATE_VERIFY_KEY }}
+        run: |
+          if (-not $env:QT_UPDATE_PRIVATE_KEY) {
+            throw "QT_UPDATE_PRIVATE_KEY secret is required"
+          }
+          $version = "${{ steps.release.outputs.version }}"
+          $tag = "${{ steps.release.outputs.tag }}"
+          $installer = "dist/windows/mistrelay-v$version-setup.exe"
+          $downloadUrl = "https://github.com/${{ github.repository }}/releases/download/$tag/mistrelay-v$version-setup.exe"
+          python scripts/release_manifest.py generate `
+            --version $version `
+            --installer $installer `
+            --download-url $downloadUrl `
+            --output dist/windows/qt-latest.json `
+            --signature-output dist/windows/qt-latest.json.sig `
+            --private-key $env:QT_UPDATE_PRIVATE_KEY
+          python scripts/release_manifest.py verify `
+            --version $version `
+            --installer $installer `
+            --download-url $downloadUrl `
+            --manifest dist/windows/qt-latest.json `
+            --signature dist/windows/qt-latest.json.sig `
+            --public-key $env:QT_UPDATE_VERIFY_KEY
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: MistRelay v${{ steps.release.outputs.version }}
+          generate_release_notes: true
+          files: |
+            dist/windows/mistrelay-v${{ steps.release.outputs.version }}-setup.exe
+            dist/windows/qt-latest.json
+            dist/windows/qt-latest.json.sig
