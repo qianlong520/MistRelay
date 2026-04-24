@@ -56,6 +56,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
+      - name: Validate update signing keys
+        shell: pwsh
+        env:
+          QT_UPDATE_PRIVATE_KEY: ${{ secrets.QT_UPDATE_PRIVATE_KEY }}
+          QT_UPDATE_VERIFY_KEY: ${{ secrets.QT_UPDATE_VERIFY_KEY }}
+        run: |
+          if (-not $env:QT_UPDATE_PRIVATE_KEY) {
+            throw "QT_UPDATE_PRIVATE_KEY is missing. Configure it in GitHub repository Secrets before publishing."
+          }
+          if (-not $env:QT_UPDATE_VERIFY_KEY) {
+            throw "QT_UPDATE_VERIFY_KEY is missing. Configure it in GitHub repository Secrets before publishing."
+          }
+          python -c "import base64, os, sys; from nacl.signing import SigningKey; private_key = os.environ['QT_UPDATE_PRIVATE_KEY'].strip(); expected = os.environ['QT_UPDATE_VERIFY_KEY'].strip(); actual = base64.b64encode(bytes(SigningKey(base64.b64decode(private_key)).verify_key)).decode('ascii'); sys.exit('QT_UPDATE_PRIVATE_KEY does not match QT_UPDATE_VERIFY_KEY') if actual != expected else print('Update signing keys validated.')"
+
       - name: Install NSIS
         run: choco install nsis -y --no-progress
 
