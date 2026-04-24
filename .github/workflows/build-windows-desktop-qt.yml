@@ -25,6 +25,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Resolve version
         id: release
@@ -80,6 +82,49 @@ jobs:
         shell: pwsh
         run: python scripts/dev_env.py build --clean
 
+      - name: Generate file patch
+        id: patch
+        shell: pwsh
+        env:
+          QT_UPDATE_PRIVATE_KEY: ${{ secrets.QT_UPDATE_PRIVATE_KEY }}
+          QT_UPDATE_VERIFY_KEY: ${{ secrets.QT_UPDATE_VERIFY_KEY }}
+        run: |
+          if (-not $env:QT_UPDATE_PRIVATE_KEY) {
+            Write-Host "QT_UPDATE_PRIVATE_KEY is not configured; skipping file patch generation."
+            exit 0
+          }
+          $currentTag = "${{ steps.release.outputs.tag }}"
+          $version = "${{ steps.release.outputs.version }}"
+          $previousTag = git tag --list 'desktop-qt-v*' --sort=-v:refname | Where-Object { $_ -ne $currentTag } | Select-Object -First 1
+          if (-not $previousTag) {
+            Write-Host "No previous desktop-qt tag found; skipping file patch generation."
+            exit 0
+          }
+          $fromVersion = $previousTag -replace '^desktop-qt-v', ''
+          $oldRoot = "build/patch-old-src"
+          git worktree add --detach $oldRoot $previousTag
+          python "$oldRoot/scripts/dev_env.py" build --clean --skip-installer
+          $patch = "dist/windows/qt-patch-$fromVersion-to-$version.zip"
+          $patchUrl = "https://github.com/${{ github.repository }}/releases/download/$currentTag/qt-patch-$fromVersion-to-$version.zip"
+          python scripts/release_manifest.py generate-patch `
+            --from-version $fromVersion `
+            --to-version $version `
+            --old-dir "$oldRoot/dist/windows/pyinstaller/MistRelay" `
+            --new-dir "dist/windows/pyinstaller/MistRelay" `
+            --output $patch `
+            --download-url $patchUrl `
+            --private-key $env:QT_UPDATE_PRIVATE_KEY
+          if ($env:QT_UPDATE_VERIFY_KEY) {
+            python scripts/release_manifest.py verify-patch `
+              --patch $patch `
+              --public-key $env:QT_UPDATE_VERIFY_KEY `
+              --from-version $fromVersion `
+              --to-version $version
+          }
+          "patch=$patch" >> $env:GITHUB_OUTPUT
+          "patch_url=$patchUrl" >> $env:GITHUB_OUTPUT
+          "patch_from_version=$fromVersion" >> $env:GITHUB_OUTPUT
+
       - name: Generate update manifest
         shell: pwsh
         env:
@@ -94,18 +139,29 @@ jobs:
           $tag = "${{ steps.release.outputs.tag }}"
           $installer = "dist/windows/mistrelay-v$version-setup.exe"
           $downloadUrl = "https://github.com/${{ github.repository }}/releases/download/$tag/mistrelay-v$version-setup.exe"
-          python scripts/release_manifest.py generate `
+          $generateArgs = @(
+            "scripts/release_manifest.py", "generate",
+            "--version", $version,
+            "--installer", $installer,
+            "--download-url", $downloadUrl,
+            "--output", "dist/windows/qt-latest.json",
+            "--signature-output", "dist/windows/qt-latest.json.sig",
+            "--private-key", $env:QT_UPDATE_PRIVATE_KEY
+          )
+          $patch = "${{ steps.patch.outputs.patch }}"
+          if ($patch) {
+            $generateArgs += @(
+              "--patch", $patch,
+              "--patch-url", "${{ steps.patch.outputs.patch_url }}",
+              "--patch-from-version", "${{ steps.patch.outputs.patch_from_version }}"
+            )
+          }
+          python @generateArgs
+          if ($env:QT_UPDATE_VERIFY_KEY) {
+            python scripts/release_manifest.py verify `
             --version $version `
             --installer $installer `
             --download-url $downloadUrl `
-            --output dist/windows/qt-latest.json `
-            --signature-output dist/windows/qt-latest.json.sig `
-            --private-key $env:QT_UPDATE_PRIVATE_KEY
-          if ($env:QT_UPDATE_VERIFY_KEY) {
-            python scripts/release_manifest.py verify `
-              --version $version `
-              --installer $installer `
-              --download-url $downloadUrl `
               --manifest dist/windows/qt-latest.json `
               --signature dist/windows/qt-latest.json.sig `
               --public-key $env:QT_UPDATE_VERIFY_KEY
@@ -120,3 +176,4 @@ jobs:
           files: |
             dist/windows/mistrelay-v${{ steps.release.outputs.version }}-setup.exe
             dist/windows/qt-latest.json*
+            dist/windows/qt-patch-*.zip

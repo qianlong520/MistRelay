@@ -133,6 +133,24 @@ class UpdateViewModel(BaseViewModel):
 
     def _download_and_install_update(self) -> DownloadedUpdate:
         assert self._pending_update is not None
+        if self._pending_update.patch_available:
+            downloaded_patch = self._update_service.download_patch(
+                self._pending_update,
+                on_progress=lambda downloaded_bytes, total_bytes, done: self.updateProgressReported.emit(
+                    int(downloaded_bytes),
+                    int(total_bytes or 0),
+                    bool(done),
+                ),
+            )
+            self._update_service.apply_patch_update(downloaded_patch)
+            return DownloadedUpdate(
+                version=downloaded_patch.version,
+                installer_path=downloaded_patch.patch_path,
+                download_url=downloaded_patch.download_url,
+                sha256=downloaded_patch.sha256,
+                size=downloaded_patch.size,
+            )
+
         downloaded = self._update_service.download_update(
             self._pending_update,
             on_progress=lambda downloaded_bytes, total_bytes, done: self.updateProgressReported.emit(
@@ -162,10 +180,13 @@ class UpdateViewModel(BaseViewModel):
         self._prompt_on_available = False
         if show_prompt:
             self._set_prompt_visible(True)
-            self._update_state = f"发现新版本 v{info.version}，等待确认安装"
+            if info.patch_available:
+                self._update_state = f"\u53d1\u73b0\u6587\u4ef6\u70ed\u66f4 v{info.version}\uff0c\u7b49\u5f85\u786e\u8ba4\u5e94\u7528"
+            else:
+                self._update_state = f"\u53d1\u73b0\u65b0\u7248\u672c v{info.version}\uff0c\u7b49\u5f85\u786e\u8ba4\u5b89\u88c5"
         else:
             self._set_prompt_visible(False)
-            self._update_state = info.message or ("发现新版本" if info.available else "当前已是最新版本")
+            self._update_state = info.message or ("\u53d1\u73b0\u65b0\u7248\u672c" if info.available else "\u5f53\u524d\u5df2\u662f\u6700\u65b0\u7248\u672c")
 
         self.updateVersionChanged.emit()
         self.updateAvailableChanged.emit()
@@ -182,9 +203,15 @@ class UpdateViewModel(BaseViewModel):
 
     def _apply_install_result(self, downloaded: DownloadedUpdate) -> None:
         self._set_busy(False)
-        self._update_state = f"已下载 {downloaded.version}，正在静默安装并重启"
+        if downloaded.installer_path.suffix.lower() == ".zip":
+            self._update_state = f"\u6587\u4ef6\u70ed\u66f4 v{downloaded.version} \u5df2\u5e94\u7528\uff0c\u90e8\u5206\u6587\u4ef6\u53ef\u80fd\u9700\u8981\u91cd\u542f\u540e\u751f\u6548"
+            self.updateStateChanged.emit()
+            self._set_info_message("\u6587\u4ef6\u70ed\u66f4\u5df2\u5e94\u7528")
+            return
+
+        self._update_state = f"\u5df2\u4e0b\u8f7d {downloaded.version}\uff0c\u6b63\u5728\u9759\u9ed8\u5b89\u88c5\u5e76\u91cd\u542f"
         self.updateStateChanged.emit()
-        self._set_info_message("更新安装器已启动，客户端即将重启")
+        self._set_info_message("\u66f4\u65b0\u5b89\u88c5\u5668\u5df2\u542f\u52a8\uff0c\u5ba2\u6237\u7aef\u5373\u5c06\u91cd\u542f")
         QTimer.singleShot(250, QCoreApplication.quit)
 
     def _apply_update_progress(self, downloaded: int, total: int, done: bool) -> None:

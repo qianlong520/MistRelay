@@ -7,6 +7,7 @@ import json
 import shutil
 import sys
 import unittest
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from unittest.mock import patch
@@ -409,6 +410,135 @@ class UpdateServiceSignatureVerificationTests(unittest.TestCase):
             ):
                 with self.assertRaisesRegex(RuntimeError, "更新验签依赖缺失：_cffi_backend"):
                     service._verify_manifest(unittest.mock.Mock(), manifest_bytes, service._signature_url)
+
+
+class UpdateServicePatchTests(unittest.TestCase):
+    def test_check_for_updates_prefers_matching_patch_metadata(self) -> None:
+        service = UpdateService(
+            current_version="1.0.0",
+            manifest_url="https://example.invalid/qt-latest.json",
+            signature_url="",
+            release_feed_url="",
+            verify_key="",
+        )
+        payload = {
+            "version": "1.0.1",
+            "platforms": {
+                "windows-x86_64": {
+                    "url": "https://example.invalid/setup.exe",
+                    "sha256": "abc",
+                    "size": 3,
+                }
+            },
+            "patches": {
+                "windows-x86_64": {
+                    "from_version": "1.0.0",
+                    "to_version": "1.0.1",
+                    "url": "https://example.invalid/patch.zip",
+                    "sha256": "def",
+                    "size": 4,
+                    "signature": "sig",
+                    "requires_restart": False,
+                    "reloadable_paths": ["mistrelay_qt/qml/Main.qml"],
+                }
+            },
+        }
+        with patch.object(service, "_resolve_manifest_endpoints", return_value=(service._manifest_url, "")):
+            with patch.object(service, "_get_response", return_value=unittest.mock.Mock(content=json.dumps(payload).encode("utf-8"))):
+                with patch.object(service, "_verify_manifest", return_value=True):
+                    with patch.object(service, "can_install_updates", return_value=True):
+                        info = service.check_for_updates()
+
+        self.assertTrue(info.patch_available)
+        self.assertTrue(info.installable)
+        self.assertEqual(info.patch_url, "https://example.invalid/patch.zip")
+
+    def test_resolve_patch_payload_ignores_non_matching_from_version(self) -> None:
+        service = UpdateService(current_version="1.0.0", manifest_url="", signature_url="", release_feed_url="")
+        payload = {
+            "patches": {
+                "windows-x86_64": {
+                    "from_version": "0.9.0",
+                    "to_version": "1.0.1",
+                    "url": "https://example.invalid/patch.zip",
+                }
+            }
+        }
+        self.assertEqual(service._resolve_patch_payload(payload, "1.0.1"), {})
+
+    def test_patch_path_rejects_traversal(self) -> None:
+        service = UpdateService(current_version="1.0.0", manifest_url="", signature_url="", release_feed_url="")
+        with self.assertRaises(RuntimeError):
+            service._validate_patch_path("../evil.txt")
+
+    def test_apply_patch_update_replaces_reloadable_file_and_rolls_back_on_failure(self) -> None:
+        from nacl.signing import SigningKey
+        from mistrelay_qt.models import DownloadedPatch
+
+        signing_key = SigningKey.generate()
+        verify_key = base64.b64encode(bytes(signing_key.verify_key)).decode("ascii")
+        service = UpdateService(current_version="1.0.0", manifest_url="", signature_url="", release_feed_url="", verify_key=verify_key)
+        with workspace_temp_dir("patch-apply") as temp_dir:
+            app_root = temp_dir / "app"
+            app_root.mkdir()
+            target = app_root / "mistrelay_qt" / "qml" / "Main.qml"
+            target.parent.mkdir(parents=True)
+            target.write_text("old", encoding="utf-8")
+            patch_path = temp_dir / "patch.zip"
+            payload = b"new"
+            manifest = {
+                "format": 1,
+                "from_version": "1.0.0",
+                "to_version": "1.0.1",
+                "requires_restart": False,
+                "reloadable_paths": ["mistrelay_qt/qml/Main.qml"],
+                "files": [
+                    {
+                        "path": "mistrelay_qt/qml/Main.qml",
+                        "action": "replace",
+                        "sha256": hashlib.sha256(payload).hexdigest(),
+                        "size": len(payload),
+                    }
+                ],
+            }
+            manifest_bytes = (json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode("utf-8")
+            manifest["signature"] = base64.b64encode(signing_key.sign(manifest_bytes).signature).decode("ascii")
+            with zipfile.ZipFile(patch_path, "w") as archive:
+                archive.writestr("patch-manifest.json", json.dumps(manifest, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n")
+                archive.writestr("files/mistrelay_qt/qml/Main.qml", payload)
+
+            with patch("mistrelay_qt.services.update_service.resource_root", return_value=app_root):
+                with patch("mistrelay_qt.services.update_service.update_backups_root", return_value=temp_dir / "backups"):
+                    with patch("mistrelay_qt.services.update_service.updates_root", return_value=temp_dir / "updates"):
+                        with patch.object(service, "can_install_updates", return_value=True):
+                            result = service.apply_patch_update(
+                                DownloadedPatch(
+                            version="1.0.1",
+                            patch_path=patch_path,
+                            download_url="https://example.invalid/patch.zip",
+                            sha256=hashlib.sha256(patch_path.read_bytes()).hexdigest(),
+                            size=patch_path.stat().st_size,
+                            signature=manifest["signature"],
+                        )
+                            )
+
+            self.assertEqual(target.read_text(encoding="utf-8"), "new")
+            self.assertEqual(result["pending_restart"], [])
+
+    def test_write_file_patch_script_copies_pending_files_and_restarts(self) -> None:
+        service = UpdateService(current_version="1.0.0", manifest_url="", signature_url="", release_feed_url="")
+        with workspace_temp_dir("file-patch-script") as temp_dir:
+            with patch("mistrelay_qt.services.update_service.tempfile.mkdtemp", return_value=str(temp_dir / "script")):
+                (temp_dir / "script").mkdir(parents=True, exist_ok=True)
+                script_path = service._write_file_patch_script(
+                pending_dir=temp_dir / "pending",
+                app_root=temp_dir / "app",
+                app_executable=temp_dir / "app" / "MistRelay.exe",
+                target_pid=1234,
+                )
+            script = script_path.read_text(encoding="utf-8")
+            self.assertIn("Copy-Item", script)
+            self.assertIn("Start-Process -FilePath $appExe", script)
 
 
 class UpdateServiceWindowsInstallerScriptTests(unittest.TestCase):

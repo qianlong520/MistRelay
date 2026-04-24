@@ -130,6 +130,13 @@ class UpdateInfo:
     download_url: str = ""
     sha256: str = ""
     size: int = 0
+    patch_available: bool = False
+    patch_url: str = ""
+    patch_sha256: str = ""
+    patch_size: int = 0
+    patch_signature: str = ""
+    requires_restart: bool = False
+    reloadable_paths: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)
@@ -139,6 +146,16 @@ class DownloadedUpdate:
     download_url: str
     sha256: str
     size: int
+
+
+@dataclass(slots=True)
+class DownloadedPatch:
+    version: str
+    patch_path: Path
+    download_url: str
+    sha256: str
+    size: int
+    signature: str = ""
 
 
 @dataclass(slots=True)

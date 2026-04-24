@@ -7,6 +7,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import zipfile
 from contextlib import contextmanager
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -22,8 +23,9 @@ from ..constants import (
     UPDATE_SIGNATURE_URL,
     UPDATE_VERIFY_KEY,
 )
-from ..models import DownloadedUpdate, UpdateInfo
-from ..paths import updates_root
+from ..models import DownloadedPatch, DownloadedUpdate, UpdateInfo
+from ..paths import update_backups_root, updates_root
+from ..runtime import app_executable, resource_root
 
 if TYPE_CHECKING:
     import httpx
@@ -102,15 +104,22 @@ class UpdateService:
         download_url = str(platform.get("url") or "")
         sha256 = str(platform.get("sha256") or "").strip().lower()
         size = int(platform.get("size") or 0)
+        patch = self._resolve_patch_payload(payload, version)
+        patch_url = str(patch.get("url") or "")
+        patch_sha256 = str(patch.get("sha256") or "").strip().lower()
+        patch_size = int(patch.get("size") or 0)
+        patch_signature = str(patch.get("signature") or "").strip()
+        requires_restart = bool(patch.get("requires_restart", False))
+        reloadable_paths = [str(path) for path in patch.get("reloadable_paths") or []]
         notes = str(payload.get("notes") or "")
         pub_date = str(payload.get("pub_date") or "")
         available = compare_versions(version, self._current_version) > 0
+        patch_available = bool(available and signature_verified and patch_url and patch_sha256)
 
         installable = bool(
             available
             and signature_verified
-            and download_url
-            and sha256
+            and ((download_url and sha256) or patch_available)
             and self.can_install_updates()
         )
 
@@ -135,6 +144,13 @@ class UpdateService:
             download_url=download_url,
             sha256=sha256,
             size=size,
+            patch_available=patch_available,
+            patch_url=patch_url,
+            patch_sha256=patch_sha256,
+            patch_size=patch_size,
+            patch_signature=patch_signature,
+            requires_restart=requires_restart,
+            reloadable_paths=reloadable_paths,
         )
 
     def can_install_updates(self) -> bool:
@@ -211,6 +227,151 @@ class UpdateService:
             size=actual_size,
         )
 
+    def download_patch(
+        self,
+        info: UpdateInfo,
+        *,
+        on_progress=None,
+    ) -> DownloadedPatch:
+        if not info.patch_url:
+            raise RuntimeError("更新清单缺少补丁包下载地址")
+        if not info.patch_sha256:
+            raise RuntimeError("更新清单缺少补丁包 SHA256")
+
+        updates_dir = updates_root() / info.version
+        updates_dir.mkdir(parents=True, exist_ok=True)
+        patch_path = updates_dir / self._patch_name_from_url(info.patch_url)
+        expected_size = int(info.patch_size or 0)
+
+        if patch_path.exists() and self._matches_digest(patch_path, info.patch_sha256, expected_size):
+            if on_progress:
+                on_progress(patch_path.stat().st_size, patch_path.stat().st_size, True)
+            return DownloadedPatch(
+                version=info.version,
+                patch_path=patch_path,
+                download_url=info.patch_url,
+                sha256=info.patch_sha256,
+                size=patch_path.stat().st_size,
+                signature=info.patch_signature,
+            )
+
+        temp_path = patch_path.with_suffix(f"{patch_path.suffix}.part")
+        digest = hashlib.sha256()
+        try:
+            with self._client(timeout=120.0) as client:
+                with self._stream_response(client, info.patch_url, stage="下载补丁包失败") as response:
+                    total = int(response.headers.get("Content-Length") or expected_size or 0)
+                    downloaded = 0
+                    with temp_path.open("wb") as handle:
+                        for chunk in response.iter_bytes(chunk_size=1024 * 256):
+                            if not chunk:
+                                continue
+                            handle.write(chunk)
+                            digest.update(chunk)
+                            downloaded += len(chunk)
+                            if on_progress:
+                                on_progress(downloaded, total, False)
+        except Exception as exc:
+            temp_path.unlink(missing_ok=True)
+            if self._is_http_error(exc):
+                raise self._wrap_http_error("下载补丁包失败", exc) from exc
+            raise
+
+        actual_sha256 = digest.hexdigest().lower()
+        if actual_sha256 != info.patch_sha256.lower():
+            temp_path.unlink(missing_ok=True)
+            raise RuntimeError("补丁包校验失败：SHA256 不匹配")
+        actual_size = temp_path.stat().st_size
+        if expected_size and actual_size != expected_size:
+            temp_path.unlink(missing_ok=True)
+            raise RuntimeError("补丁包校验失败：文件大小不匹配")
+
+        temp_path.replace(patch_path)
+        if on_progress:
+            on_progress(actual_size, actual_size, True)
+        return DownloadedPatch(
+            version=info.version,
+            patch_path=patch_path,
+            download_url=info.patch_url,
+            sha256=info.patch_sha256,
+            size=actual_size,
+            signature=info.patch_signature,
+        )
+
+    def apply_patch_update(self, downloaded: DownloadedPatch) -> dict[str, object]:
+        if not self.can_install_updates():
+            raise RuntimeError("当前环境不支持自动应用文件热更")
+
+        patch_path = downloaded.patch_path.resolve()
+        if not patch_path.exists():
+            raise RuntimeError("更新补丁包不存在")
+
+        app_root = resource_root().resolve()
+        backup_dir = update_backups_root() / downloaded.version
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        pending_binary_dir = updates_root() / downloaded.version / "pending-files"
+        pending_binary_dir.mkdir(parents=True, exist_ok=True)
+
+        applied: list[str] = []
+        pending_restart: list[str] = []
+        manifest: dict[str, object]
+        try:
+            with zipfile.ZipFile(patch_path, "r") as archive:
+                manifest = self._read_patch_manifest(archive)
+                if downloaded.signature and manifest.get("signature") != downloaded.signature:
+                    raise RuntimeError("补丁清单签名与更新清单不一致")
+                self._verify_embedded_patch_signature(manifest)
+                for entry in self._patch_entries(manifest):
+                    relative_path = str(entry.get("path") or "")
+                    action = str(entry.get("action") or "")
+                    self._validate_patch_path(relative_path)
+                    target_path = (app_root / relative_path).resolve()
+                    self._ensure_child_path(app_root, target_path)
+                    backup_path = backup_dir / relative_path
+
+                    if self._requires_restart(relative_path):
+                        if action != "delete":
+                            payload = self._read_patch_payload(archive, entry)
+                            pending_path = pending_binary_dir / relative_path
+                            pending_path.parent.mkdir(parents=True, exist_ok=True)
+                            pending_path.write_bytes(payload)
+                        pending_restart.append(relative_path)
+                        continue
+
+                    if target_path.exists() and not backup_path.exists():
+                        backup_path.parent.mkdir(parents=True, exist_ok=True)
+                        backup_path.write_bytes(target_path.read_bytes())
+                    if action == "delete":
+                        target_path.unlink(missing_ok=True)
+                    elif action in {"add", "replace"}:
+                        payload = self._read_patch_payload(archive, entry)
+                        target_path.parent.mkdir(parents=True, exist_ok=True)
+                        target_path.write_bytes(payload)
+                    else:
+                        raise RuntimeError(f"未知补丁动作：{action}")
+                    applied.append(relative_path)
+        except Exception:
+            self._restore_patch_backup(app_root, backup_dir, applied)
+            raise
+
+        if pending_restart:
+            script_path = self._write_file_patch_script(
+                pending_dir=pending_binary_dir,
+                app_root=app_root,
+                app_executable=app_executable().resolve(),
+                target_pid=os.getpid(),
+            )
+            self._launch_update_script(script_path)
+
+        return {
+            "applied": applied,
+            "pending_restart": pending_restart,
+            "requires_restart": bool(pending_restart or manifest.get("requires_restart")),
+        }
+
+    def has_pending_file_update(self) -> bool:
+        return any(updates_root().glob("*/pending-files"))
+
     def install_update(self, downloaded: DownloadedUpdate) -> None:
         if not self.can_install_updates():
             raise RuntimeError("当前环境不支持自动安装更新")
@@ -232,19 +393,7 @@ class UpdateService:
                 subprocess, "CREATE_NEW_PROCESS_GROUP", 0
             )
 
-        subprocess.Popen(  # noqa: S603
-            [
-                "powershell",
-                "-NoProfile",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-WindowStyle",
-                "Hidden",
-                "-File",
-                str(script_path),
-            ],
-            creationflags=creationflags,
-        )
+        self._launch_update_script(script_path, creationflags=creationflags)
 
     def _verify_manifest(
         self,
@@ -300,6 +449,27 @@ class UpdateService:
         platform_key = self._platform_key()
         target = platforms.get(platform_key)
         if not isinstance(target, dict):
+            return {}
+        return target
+
+    def _resolve_patch_payload(self, payload: dict, version: str) -> dict:
+        patches = payload.get("patches") or {}
+        platform_key = self._platform_key()
+        target = patches.get(platform_key)
+        if isinstance(target, list):
+            for item in target:
+                if (
+                    isinstance(item, dict)
+                    and str(item.get("from_version") or "") == self._current_version
+                    and str(item.get("to_version") or "") == version
+                ):
+                    return item
+            return {}
+        if not isinstance(target, dict):
+            return {}
+        if str(target.get("from_version") or "") != self._current_version:
+            return {}
+        if str(target.get("to_version") or version) != version:
             return {}
         return target
 
@@ -442,6 +612,11 @@ class UpdateService:
         candidate = Path(parsed.path).name.strip()
         return candidate or "mistrelay-desktop-qt-setup.exe"
 
+    def _patch_name_from_url(self, url: str) -> str:
+        parsed = urlparse(url)
+        candidate = Path(parsed.path).name.strip()
+        return candidate or "mistrelay-qt-patch.zip"
+
     def _matches_digest(self, path: Path, expected_digest: str, expected_size: int) -> bool:
         if expected_size and path.stat().st_size != expected_size:
             return False
@@ -482,6 +657,140 @@ class UpdateService:
             encoding="utf-8",
         )
         return script_path
+
+    def _write_file_patch_script(
+        self,
+        *,
+        pending_dir: Path,
+        app_root: Path,
+        app_executable: Path,
+        target_pid: int,
+    ) -> Path:
+        temp_dir = Path(tempfile.mkdtemp(prefix="mistrelay-qt-file-update-"))
+        script_path = temp_dir / "apply-file-update.ps1"
+        script_path.write_text(
+            "\n".join(
+                [
+                    "$ErrorActionPreference = 'Stop'",
+                    f"$targetPid = {target_pid}",
+                    f"$pendingDir = '{self._ps_literal(pending_dir)}'",
+                    f"$appRoot = '{self._ps_literal(app_root)}'",
+                    f"$appExe = '{self._ps_literal(app_executable)}'",
+                    "try { Wait-Process -Id $targetPid -ErrorAction SilentlyContinue } catch { }",
+                    "Get-ChildItem -LiteralPath $pendingDir -Recurse -File | ForEach-Object {",
+                    "  $relative = $_.FullName.Substring($pendingDir.Length).TrimStart('\\')",
+                    "  $target = Join-Path $appRoot $relative",
+                    "  $targetParent = Split-Path -Parent $target",
+                    "  if ($targetParent) { New-Item -ItemType Directory -Force -Path $targetParent | Out-Null }",
+                    "  Copy-Item -LiteralPath $_.FullName -Destination $target -Force",
+                    "}",
+                    "Start-Sleep -Seconds 1",
+                    "if (Test-Path $appExe) { Start-Process -FilePath $appExe }",
+                ]
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        return script_path
+
+    def _launch_update_script(self, script_path: Path, *, creationflags: int | None = None) -> None:
+        flags = creationflags
+        if flags is None:
+            flags = 0
+            if sys.platform.startswith("win"):
+                flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(
+                    subprocess, "CREATE_NEW_PROCESS_GROUP", 0
+                )
+        subprocess.Popen(  # noqa: S603
+            [
+                "powershell",
+                "-NoProfile",
+                "-ExecutionPolicy",
+                "Bypass",
+                "-WindowStyle",
+                "Hidden",
+                "-File",
+                str(script_path),
+            ],
+            creationflags=flags,
+        )
+
+    def _read_patch_manifest(self, archive: zipfile.ZipFile) -> dict:
+        try:
+            payload = json.loads(archive.read("patch-manifest.json").decode("utf-8"))
+        except KeyError as exc:
+            raise RuntimeError("补丁包缺少 patch-manifest.json") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("补丁清单格式无效")
+        return payload
+
+    def _verify_embedded_patch_signature(self, manifest: dict) -> None:
+        signature = str(manifest.get("signature") or "").strip()
+        if not signature:
+            raise RuntimeError("补丁清单缺少签名")
+        if not self._verify_key:
+            raise RuntimeError("补丁验签公钥未配置")
+        unsigned = dict(manifest)
+        unsigned.pop("signature", None)
+        manifest_bytes = (json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n").encode(
+            "utf-8"
+        )
+        try:
+            from nacl.signing import VerifyKey
+
+            VerifyKey(base64.b64decode(self._verify_key)).verify(manifest_bytes, base64.b64decode(signature))
+        except Exception as exc:
+            raise RuntimeError("补丁清单验签失败") from exc
+
+    def _patch_entries(self, manifest: dict) -> list[dict]:
+        files = manifest.get("files")
+        if not isinstance(files, list):
+            raise RuntimeError("补丁清单缺少 files")
+        entries: list[dict] = []
+        for item in files:
+            if not isinstance(item, dict):
+                raise RuntimeError("补丁文件项格式无效")
+            entries.append(item)
+        return entries
+
+    def _read_patch_payload(self, archive: zipfile.ZipFile, entry: dict) -> bytes:
+        relative_path = str(entry.get("path") or "")
+        try:
+            payload = archive.read(f"files/{relative_path}")
+        except KeyError as exc:
+            raise RuntimeError(f"补丁包缺少文件：{relative_path}") from exc
+        expected_sha256 = str(entry.get("sha256") or "").lower()
+        expected_size = int(entry.get("size") or 0)
+        if hashlib.sha256(payload).hexdigest().lower() != expected_sha256:
+            raise RuntimeError(f"补丁文件 SHA256 不匹配：{relative_path}")
+        if len(payload) != expected_size:
+            raise RuntimeError(f"补丁文件大小不匹配：{relative_path}")
+        return payload
+
+    def _validate_patch_path(self, relative_path: str) -> None:
+        candidate = Path(relative_path)
+        if not relative_path or candidate.is_absolute() or ".." in candidate.parts or "\\" in relative_path:
+            raise RuntimeError(f"补丁路径不安全：{relative_path}")
+
+    def _ensure_child_path(self, root: Path, candidate: Path) -> None:
+        try:
+            candidate.relative_to(root)
+        except ValueError as exc:
+            raise RuntimeError(f"补丁目标路径越界：{candidate}") from exc
+
+    def _requires_restart(self, relative_path: str) -> bool:
+        lowered = relative_path.lower()
+        return lowered.endswith((".exe", ".dll", ".pyd", ".zip")) or lowered.startswith("python")
+
+    def _restore_patch_backup(self, app_root: Path, backup_dir: Path, applied: list[str]) -> None:
+        for relative_path in reversed(applied):
+            backup_path = backup_dir / relative_path
+            target_path = app_root / relative_path
+            if backup_path.exists():
+                target_path.parent.mkdir(parents=True, exist_ok=True)
+                target_path.write_bytes(backup_path.read_bytes())
+            else:
+                target_path.unlink(missing_ok=True)
 
     def _ps_literal(self, value: Path) -> str:
         return str(value).replace("'", "''")

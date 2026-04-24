@@ -46,12 +46,16 @@ def updates_root() -> Path:
     return cache_root() / "updates"
 
 
+def update_backups_root() -> Path:
+    return cache_root() / "update-backups"
+
+
 def logs_root() -> Path:
     return cache_root() / "logs"
 
 
 def ensure_runtime_dirs() -> None:
-    for path in (config_root(), cache_root(), preview_cache_root(), updates_root(), logs_root()):
+    for path in (config_root(), cache_root(), preview_cache_root(), updates_root(), update_backups_root(), logs_root()):
         path.mkdir(parents=True, exist_ok=True)
 
 
