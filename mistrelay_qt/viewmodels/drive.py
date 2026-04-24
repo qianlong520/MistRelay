@@ -660,6 +660,13 @@ class DriveViewModel(BaseViewModel):
                 "sourceUrl": str(record.get("source_url") or ""),
                 "remotePath": remote_path,
                 "description": caption,
+                "thumbnailUrl": self._first_non_empty(
+                    record,
+                    "thumbnail_url",
+                    "thumbnailUrl",
+                    "thumb_url",
+                    "thumbUrl",
+                ),
             }
 
             items.append(
@@ -1416,8 +1423,32 @@ class DriveViewModel(BaseViewModel):
     def _thumbnail_url_for_item(self, item: dict[str, Any]) -> str:
         if self._item_kind(item) != "image":
             return ""
+        path = str(item.get("path") or "")
+        meta = self._telegram_meta.get(path) or {}
+        thumbnail_url = self._first_non_empty(
+            item,
+            "thumbnail_url",
+            "thumbnailUrl",
+            "thumb_url",
+            "thumbUrl",
+        ) or str(meta.get("thumbnailUrl") or "")
+        return self._normalize_thumbnail_url(thumbnail_url)
+
+    def _first_non_empty(self, source: dict[str, Any], *keys: str) -> str:
+        for key in keys:
+            value = str(source.get(key) or "").strip()
+            if value:
+                return value
+        return ""
+
+    def _normalize_thumbnail_url(self, thumbnail_url: str) -> str:
+        thumbnail_url = thumbnail_url.strip()
+        if not thumbnail_url:
+            return ""
+        if thumbnail_url.startswith("http://") or thumbnail_url.startswith("https://"):
+            return thumbnail_url
         try:
-            return self._source_url_for_item(item)
+            return self._api_client.resolve_server_url(thumbnail_url)
         except Exception:
             return ""
 
@@ -1514,9 +1545,17 @@ class DriveViewModel(BaseViewModel):
         self._cached_paths = cached
 
     def _has_cached_identity(self, root: Path, source_hash: str) -> bool:
-        if not root.exists():
+        try:
+            root_exists = root.exists()
+        except OSError:
             return False
-        for sidecar in root.rglob("*.mistrelay.json"):
+        if not root_exists:
+            return False
+        try:
+            sidecars = list(root.rglob("*.mistrelay.json"))
+        except OSError:
+            return False
+        for sidecar in sidecars:
             try:
                 content = sidecar.read_text(encoding="utf-8")
             except OSError:

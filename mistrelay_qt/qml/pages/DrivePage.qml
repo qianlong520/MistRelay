@@ -1,18 +1,65 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
-import QtMultimedia
 import "../theme" as ThemeSystem
 import "../components"
 
 ResponsivePage {
     id: root
 
+    readonly property var driveVm: driveViewModel || ({
+        channelStats: ({}),
+        sidebarSection: "all",
+        hasSelection: false,
+        selectedPaths: [],
+        itemsModel: null,
+        viewMode: "grid",
+        busy: false,
+        errorMessage: "",
+        channelSummary: "",
+        searchKeyword: "",
+        canNavigateUp: false,
+        workspaceTitle: "",
+        breadcrumbText: "",
+        filterSummary: "",
+        selectionSummary: "",
+        openEnabled: false,
+        batchDownloadEnabled: false,
+        batchDeleteEnabled: false,
+        emptyState: "",
+        pageSummary: "",
+        currentPage: 1,
+        totalPages: 1,
+        canPreviousPage: false,
+        canNextPage: false,
+        pageSize: 30,
+        sortOption: "time_desc",
+        setSidebarSection: function() {},
+        refresh: function() {},
+        setSearchKeyword: function() {},
+        commitSearch: function() {},
+        setViewMode: function() {},
+        openSelection: function() {},
+        batchDownloadSelected: function() {},
+        batchDeleteSelected: function() {},
+        clearSelection: function() {},
+        activateItem: function() {},
+        selectItem: function() {},
+        toggleSelection: function() {},
+        openPreview: function() {},
+        downloadItem: function() {},
+        deleteItem: function() {},
+        deleteSelected: function() {},
+        navigateUp: function() {},
+        previousPage: function() {},
+        nextPage: function() {},
+        setPageSize: function() {},
+        setSortOption: function() {}
+    })
+
     horizontalPadding: 24
     verticalPadding: 22
     sectionSpacing: 16
-
-    readonly property bool showWideDetail: driveViewModel.detailPanelVisible && contentFrameWidth >= 1380
 
     property var sectionOptions: [
         { key: "all", label: "全部" },
@@ -35,17 +82,26 @@ ResponsivePage {
     property bool contextCanPreview: false
     property bool contextCanDownload: false
     property bool contextCanDelete: false
+    property bool contextTargetsSelection: false
+    property int contextSelectionCount: 0
+    property real contextClickSceneX: 0
+    property real contextClickSceneY: 0
+    property real contextAnchorSceneX: 0
+    property real contextAnchorSceneY: 0
+    property real contextAnchorWidth: 0
+    property real contextAnchorHeight: 0
+    readonly property int contextMenuMargin: 12
     property var contextMenuActions: [
         { key: "open" },
         { key: "preview" },
         { key: "download" },
-        { key: "delete" },
+        { key: "delete", separatorBefore: true },
         { key: "clearSelection", separatorBefore: true }
     ]
 
     Component.onCompleted: {
-        if (!driveViewModel.busy && driveViewModel.itemsModel.count === 0) {
-            driveViewModel.refresh()
+        if (!root.driveVm.busy && root.driveVm.itemsModel.count === 0) {
+            root.driveVm.refresh()
         }
     }
 
@@ -100,13 +156,18 @@ ResponsivePage {
     }
 
     function summaryValue(key) {
-        var stats = driveViewModel.channelStats || {}
+        var stats = root.driveVm.channelStats || {}
         return stats[key] !== undefined ? stats[key] : 0
     }
 
     function prepareContext(path, isDir, canPreview, canDownload, canDelete) {
-        if (driveViewModel.selectedPaths.indexOf(path) < 0) {
-            driveViewModel.selectItem(path)
+        var selectedPaths = root.driveVm.selectedPaths || []
+        var targetInSelection = selectedPaths.indexOf(path) >= 0
+        contextTargetsSelection = targetInSelection && selectedPaths.length > 1
+        contextSelectionCount = contextTargetsSelection ? selectedPaths.length : 1
+
+        if (!targetInSelection) {
+            root.driveVm.selectItem(path)
         }
         contextPath = path
         contextIsDir = isDir
@@ -115,29 +176,108 @@ ResponsivePage {
         contextCanDelete = canDelete
     }
 
+    function contextItemName() {
+        if (root.contextPath.length === 0) {
+            return ""
+        }
+        var normalizedPath = root.contextPath.replace(/\\/g, "/")
+        var parts = normalizedPath.split("/")
+        return parts.length > 0 ? parts[parts.length - 1] : root.contextPath
+    }
+
+    function contextMenuTitle() {
+        if (root.contextTargetsSelection) {
+            return "已选择 " + root.contextSelectionCount + " 项"
+        }
+        return root.contextItemName()
+    }
+
+    function contextMenuSubtitle() {
+        if (root.contextTargetsSelection) {
+            return "右键项位于当前选区内"
+        }
+        return root.contextIsDir ? "媒体组操作" : "文件操作"
+    }
+
+    function contextMenuWidth() {
+        return contextMenuPopup.width > 0 ? contextMenuPopup.width : 224
+    }
+
+    function contextMenuHeight() {
+        if (contextMenuPopup.implicitHeight > 0) {
+            return contextMenuPopup.implicitHeight
+        }
+        return contextMenuPopup.contentItem
+               ? contextMenuPopup.contentItem.implicitHeight + contextMenuPopup.topPadding + contextMenuPopup.bottomPadding
+               : 260
+    }
+
+    function positionContextMenu() {
+        var popupParent = contextMenuPopup.parent || root
+        if (!popupParent || popupParent.width <= 0 || popupParent.height <= 0) {
+            return
+        }
+        var menuWidth = root.contextMenuWidth()
+        var menuHeight = root.contextMenuHeight()
+        var margin = root.contextMenuMargin
+        if (menuWidth <= 0 || menuHeight <= 0) {
+            return
+        }
+        var anchorRight = root.contextAnchorSceneX + root.contextAnchorWidth
+        var anchorBottom = root.contextAnchorSceneY + root.contextAnchorHeight
+        var desiredX = root.contextClickSceneX + 8
+        var desiredY = root.contextClickSceneY + 8
+
+        if (desiredX + menuWidth > popupParent.width - margin) {
+            desiredX = Math.max(root.contextAnchorSceneX, root.contextClickSceneX - menuWidth - 8)
+        }
+        if (desiredY + menuHeight > popupParent.height - margin) {
+            desiredY = Math.max(root.contextAnchorSceneY, root.contextClickSceneY - menuHeight - 8)
+        }
+
+        var nearMinX = Math.max(margin, root.contextAnchorSceneX - menuWidth - margin)
+        var nearMaxX = Math.min(popupParent.width - menuWidth - margin, anchorRight + margin)
+        var nearMinY = Math.max(margin, root.contextAnchorSceneY - menuHeight - margin)
+        var nearMaxY = Math.min(popupParent.height - menuHeight - margin, anchorBottom + margin)
+
+        if (nearMaxX >= nearMinX) {
+            desiredX = Math.max(nearMinX, Math.min(nearMaxX, desiredX))
+        }
+        if (nearMaxY >= nearMinY) {
+            desiredY = Math.max(nearMinY, Math.min(nearMaxY, desiredY))
+        }
+
+        var maxX = Math.max(margin, popupParent.width - menuWidth - margin)
+        var maxY = Math.max(margin, popupParent.height - menuHeight - margin)
+        contextMenuPopup.x = Math.max(margin, Math.min(maxX, desiredX))
+        contextMenuPopup.y = Math.max(margin, Math.min(maxY, desiredY))
+    }
+
     function openContextMenu(path, isDir, canPreview, canDownload, canDelete, x, y, sourceItem) {
+        if (!contextMenuPopup.parent) {
+            contextMenuPopup.parent = root
+        }
+        var popupParent = contextMenuPopup.parent || root
+        var clickPoint = sourceItem.mapToItem(popupParent, x, y)
+        var anchorPoint = sourceItem.mapToItem(popupParent, 0, 0)
+        contextClickSceneX = clickPoint.x
+        contextClickSceneY = clickPoint.y
+        contextAnchorSceneX = anchorPoint.x
+        contextAnchorSceneY = anchorPoint.y
+        contextAnchorWidth = sourceItem.width
+        contextAnchorHeight = sourceItem.height
+
         prepareContext(path, isDir, canPreview, canDownload, canDelete)
-        var overlay = Overlay.overlay || root
-        var point = sourceItem.mapToItem(overlay, x, y)
-        var desiredX = point.x + 8
-        var desiredY = point.y + 8
-        var menuWidth = contextMenuPopup.width > 0 ? contextMenuPopup.width : contextMenuPopup.implicitWidth
-        var menuHeight = contextMenuPopup.implicitHeight > 0
-                         ? contextMenuPopup.implicitHeight
-                         : (contextMenuPopup.contentItem
-                            ? contextMenuPopup.contentItem.implicitHeight + contextMenuPopup.topPadding + contextMenuPopup.bottomPadding
-                            : 220)
-        var menuMargin = 12
-        var maxX = Math.max(menuMargin, overlay.width - menuWidth - menuMargin)
-        var maxY = Math.max(menuMargin, overlay.height - menuHeight - menuMargin)
 
         if (contextMenuPopup.opened) {
             contextMenuPopup.close()
         }
 
-        contextMenuPopup.x = Math.max(menuMargin, Math.min(maxX, desiredX))
-        contextMenuPopup.y = Math.max(menuMargin, Math.min(maxY, desiredY))
+        contextMenuPopup.x = root.contextMenuMargin
+        contextMenuPopup.y = root.contextMenuMargin
         contextMenuPopup.open()
+        Qt.callLater(root.positionContextMenu)
+        Qt.callLater(function() { root.positionContextMenu() })
     }
 
     function itemSubtitle(item) {
@@ -158,13 +298,13 @@ ResponsivePage {
     function contextMenuActionText(actionKey) {
         switch (actionKey) {
         case "open":
-            return root.contextIsDir ? "打开媒体组" : "打开"
+            return root.contextTargetsSelection ? "打开选中项" : (root.contextIsDir ? "打开媒体组" : "打开")
         case "preview":
             return "预览"
         case "download":
-            return root.contextIsDir ? "下载整组" : "下载"
+            return root.contextTargetsSelection ? "下载 " + root.contextSelectionCount + " 项" : (root.contextIsDir ? "下载整组" : "下载")
         case "delete":
-            return root.contextIsDir ? "删除媒体组" : "删除"
+            return root.contextTargetsSelection ? "删除 " + root.contextSelectionCount + " 项" : (root.contextIsDir ? "删除媒体组" : "删除")
         case "clearSelection":
             return "清除选择"
         default:
@@ -203,14 +343,16 @@ ResponsivePage {
 
     function contextMenuActionEnabled(actionKey) {
         switch (actionKey) {
+        case "open":
+            return !root.contextTargetsSelection && root.contextPath.length > 0
         case "preview":
-            return root.contextCanPreview
+            return !root.contextTargetsSelection && root.contextCanPreview
         case "download":
-            return root.contextCanDownload
+            return root.contextTargetsSelection ? root.driveVm.batchDownloadEnabled : root.contextCanDownload
         case "delete":
-            return root.contextCanDelete
+            return root.contextTargetsSelection ? root.driveVm.batchDeleteEnabled : root.contextCanDelete
         case "clearSelection":
-            return driveViewModel.hasSelection
+            return root.driveVm.hasSelection
         default:
             return root.contextPath.length > 0
         }
@@ -235,9 +377,9 @@ ResponsivePage {
             return "transparent"
         }
         if (root.contextMenuActionTone(actionKey) === "danger") {
-            return pressed ? "#f7d6db" : (hovered ? ThemeSystem.Theme.dangerSoft : "transparent")
+            return pressed ? ThemeSystem.Theme.dangerSoft : (hovered ? ThemeSystem.Theme.dangerSoft : "transparent")
         }
-        return pressed ? "#dcecff" : (hovered ? ThemeSystem.Theme.infoSoft : "transparent")
+        return pressed ? ThemeSystem.Theme.sidebarHoverFill : (hovered ? ThemeSystem.Theme.infoSoft : "transparent")
     }
 
     function contextMenuActionBorder(actionKey, hovered, pressed, enabled) {
@@ -245,59 +387,54 @@ ResponsivePage {
             return "transparent"
         }
         if (root.contextMenuActionTone(actionKey) === "danger") {
-            return "#efc0c7"
+            return ThemeSystem.Theme.cardBorderStrong
         }
-        return "#cfe0f5"
+        return ThemeSystem.Theme.cardBorderStrong
     }
 
     function triggerContextMenuAction(actionKey) {
         contextMenuPopup.close()
         switch (actionKey) {
         case "open":
-            driveViewModel.activateItem(root.contextPath)
+            if (root.contextTargetsSelection) {
+                root.driveVm.openSelection()
+            } else {
+                root.driveVm.activateItem(root.contextPath)
+            }
             break
         case "preview":
-            driveViewModel.openPreview(root.contextPath)
+            root.driveVm.openPreview(root.contextPath)
             break
         case "download":
-            driveViewModel.downloadItem(root.contextPath)
+            if (root.contextTargetsSelection) {
+                root.driveVm.batchDownloadSelected()
+            } else {
+                root.driveVm.downloadItem(root.contextPath)
+            }
             break
         case "delete":
-            driveViewModel.deleteItem(root.contextPath)
+            if (root.contextTargetsSelection) {
+                root.driveVm.batchDeleteSelected()
+            } else {
+                root.driveVm.deleteItem(root.contextPath)
+            }
             break
         case "clearSelection":
-            driveViewModel.clearSelection()
+            root.driveVm.clearSelection()
             break
         default:
             break
         }
     }
 
-    Component {
-        id: previewPlayerComponent
-
-        MediaPlayer {
-            autoPlay: true
-            audioOutput: AudioOutput { }
-            videoOutput: detailVideoOutput
-            source: driveViewModel.previewState.source
-        }
-    }
-
-    Loader {
-        visible: false
-        active: driveViewModel.previewState.mode === "video" && driveViewModel.previewState.source.length > 0
-        sourceComponent: previewPlayerComponent
-    }
 
     Popup {
         id: contextMenuPopup
 
-        parent: Overlay.overlay ? Overlay.overlay : root
-        width: 206
+        width: 224
         modal: false
         focus: true
-        padding: 8
+        padding: 10
         closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
 
         enter: Transition {
@@ -317,15 +454,70 @@ ResponsivePage {
             border.color: ThemeSystem.Theme.cardBorder
 
             Rectangle {
+                x: 6
+                y: 10
+                width: Math.max(0, parent.width - 12)
+                height: parent.height
+                radius: parent.radius + 6
+                color: ThemeSystem.Theme.shadowColorStrong
+                opacity: 0.24
+                z: -2
+            }
+
+            Rectangle {
+                x: 3
+                y: 5
+                width: Math.max(0, parent.width - 6)
+                height: Math.max(0, parent.height - 1)
+                radius: parent.radius + 3
+                color: ThemeSystem.Theme.shadowColor
+                opacity: 0.32
+                z: -1
+            }
+
+            Rectangle {
                 anchors.fill: parent
-                anchors.margins: 1
-                radius: parent.radius - 1
-                color: "#ffffff66"
+                anchors.topMargin: 1
+                radius: parent.radius
+                color: "transparent"
+                border.width: 1
+                border.color: ThemeSystem.Theme.micaTint
+                opacity: 0.28
             }
         }
 
         contentItem: ColumnLayout {
-            spacing: 4
+            spacing: 6
+
+            ColumnLayout {
+                Layout.fillWidth: true
+                Layout.leftMargin: 6
+                Layout.rightMargin: 6
+                Layout.bottomMargin: 2
+                spacing: 2
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.contextMenuTitle()
+                    color: ThemeSystem.Theme.textPrimary
+                    font.pixelSize: 13
+                    font.bold: true
+                    maximumLineCount: 1
+                    elide: Text.ElideRight
+                    font.family: ThemeSystem.Theme.fontFamily
+                }
+
+                Text {
+                    Layout.fillWidth: true
+                    text: root.contextMenuSubtitle()
+                    color: ThemeSystem.Theme.textTertiary
+                    font.pixelSize: 11
+                    maximumLineCount: 1
+                    elide: Text.ElideMiddle
+                    visible: text.length > 0
+                    font.family: ThemeSystem.Theme.fontFamily
+                }
+            }
 
             Repeater {
                 model: root.contextMenuActions
@@ -349,7 +541,7 @@ ResponsivePage {
                         id: menuActionButton
 
                         Layout.fillWidth: true
-                        implicitHeight: 38
+                        implicitHeight: 42
                         enabled: root.contextMenuActionEnabled(modelData.key)
                         hoverEnabled: true
                         opacity: enabled ? 1.0 : 0.48
@@ -365,6 +557,19 @@ ResponsivePage {
                                                                        menuActionButton.hovered,
                                                                        menuActionButton.down,
                                                                        menuActionButton.enabled)
+
+                            Rectangle {
+                                width: 3
+                                height: parent.height - 14
+                                radius: 2
+                                anchors.left: parent.left
+                                anchors.leftMargin: 4
+                                anchors.verticalCenter: parent.verticalCenter
+                                visible: menuActionButton.enabled && menuActionButton.hovered
+                                color: root.contextMenuActionTone(modelData.key) === "danger"
+                                       ? ThemeSystem.Theme.colorDanger
+                                       : ThemeSystem.Theme.colorPrimary
+                            }
 
                             Behavior on color {
                                 ColorAnimation { duration: ThemeSystem.Theme.fastDuration }
@@ -387,7 +592,7 @@ ResponsivePage {
                                 text: root.contextMenuActionText(modelData.key)
                                 color: root.contextMenuActionColor(modelData.key, menuActionButton.enabled)
                                 font.pixelSize: 13
-                                font.bold: modelData.key === "delete"
+                                font.bold: menuActionButton.hovered && modelData.key === "delete"
                                 elide: Text.ElideRight
                                 verticalAlignment: Text.AlignVCenter
                                 font.family: ThemeSystem.Theme.fontFamily
@@ -474,10 +679,12 @@ ResponsivePage {
                 id: clickTimer
                 interval: 220
                 repeat: false
-                onTriggered: driveViewModel.toggleSelection(cardRoot.path)
+                onTriggered: root.driveVm.toggleSelection(cardRoot.path)
             }
 
             MouseArea {
+                id: fileCardMouseArea
+
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 hoverEnabled: true
@@ -493,7 +700,7 @@ ResponsivePage {
                                              cardRoot.canDelete,
                                              mouse.x,
                                              mouse.y,
-                                             cardRoot)
+                                             fileCardMouseArea)
                         return
                     }
                     clickTimer.restart()
@@ -504,7 +711,7 @@ ResponsivePage {
                         return
                     }
                     clickTimer.stop()
-                    driveViewModel.activateItem(cardRoot.path)
+                    root.driveVm.activateItem(cardRoot.path)
                 }
             }
 
@@ -743,10 +950,12 @@ ResponsivePage {
                 id: rowClickTimer
                 interval: 220
                 repeat: false
-                onTriggered: driveViewModel.toggleSelection(rowRoot.path)
+                onTriggered: root.driveVm.toggleSelection(rowRoot.path)
             }
 
             MouseArea {
+                id: listRowMouseArea
+
                 anchors.fill: parent
                 acceptedButtons: Qt.LeftButton | Qt.RightButton
                 hoverEnabled: true
@@ -762,7 +971,7 @@ ResponsivePage {
                                              rowRoot.canDelete,
                                              mouse.x,
                                              mouse.y,
-                                             rowRoot)
+                                             listRowMouseArea)
                         return
                     }
                     rowClickTimer.restart()
@@ -773,7 +982,7 @@ ResponsivePage {
                         return
                     }
                     rowClickTimer.stop()
-                    driveViewModel.activateItem(rowRoot.path)
+                    root.driveVm.activateItem(rowRoot.path)
                 }
             }
 
@@ -889,7 +1098,7 @@ ResponsivePage {
                         iconName: rowRoot.isDir ? "open" : "eye"
                         tone: "primary"
                         compact: true
-                        onClicked: rowRoot.isDir ? driveViewModel.activateItem(rowRoot.path) : driveViewModel.openPreview(rowRoot.path)
+                        onClicked: rowRoot.isDir ? root.driveVm.activateItem(rowRoot.path) : root.driveVm.openPreview(rowRoot.path)
                     }
 
                     DriveActionButton {
@@ -897,379 +1106,12 @@ ResponsivePage {
                         iconName: "download"
                         tone: "neutral"
                         compact: true
-                        onClicked: driveViewModel.downloadItem(rowRoot.path)
+                        onClicked: root.driveVm.downloadItem(rowRoot.path)
                     }
                 }
             }
         }
     }
-
-    Component {
-        id: detailPaneComponent
-
-        GlassCard {
-            padding: 18
-            backgroundColor: "#ffffff"
-            borderColor: ThemeSystem.Theme.cardBorder
-            shadowOpacity: 0.08
-            implicitHeight: detailColumn.implicitHeight + 36
-
-            ColumnLayout {
-                id: detailColumn
-                anchors.fill: parent
-                spacing: 14
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 4
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: driveViewModel.selectedItem.hasSelection
-                                  ? driveViewModel.selectedItem.title
-                                  : "未选择内容"
-                            color: ThemeSystem.Theme.textPrimary
-                            font.pixelSize: 16
-                            font.bold: true
-                            wrapMode: Text.WordWrap
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            text: driveViewModel.selectedItem.hasMultiple
-                                  ? driveViewModel.selectionSummary
-                                  : root.itemSubtitle(driveViewModel.selectedItem)
-                            color: ThemeSystem.Theme.textSecondary
-                            font.pixelSize: 12
-                            wrapMode: Text.WordWrap
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-                    }
-
-                    Rectangle {
-                        visible: driveViewModel.selectedItem.kindLabel && driveViewModel.selectedItem.kindLabel.length > 0
-                        radius: 999
-                        color: ThemeSystem.Theme.infoSoft
-                        border.width: 1
-                        border.color: "#cfe2ff"
-                        implicitHeight: 28
-                        implicitWidth: detailKindText.implicitWidth + 16
-
-                        Text {
-                            id: detailKindText
-                            anchors.centerIn: parent
-                            text: driveViewModel.selectedItem.kindLabel
-                            color: ThemeSystem.Theme.colorPrimary
-                            font.pixelSize: 11
-                            font.bold: true
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-                    }
-                }
-
-                Rectangle {
-                    Layout.fillWidth: true
-                    radius: 18
-                    color: "#f5f8fc"
-                    border.width: 1
-                    border.color: ThemeSystem.Theme.cardBorder
-                    implicitHeight: 240
-                    clip: true
-
-                    Item {
-                        anchors.fill: parent
-
-                        Image {
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            visible: driveViewModel.previewState.mode === "image" && driveViewModel.previewState.source.length > 0
-                            source: driveViewModel.previewState.source
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            cache: false
-                        }
-
-                        Image {
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            visible: driveViewModel.previewState.mode === "none"
-                                     && driveViewModel.selectedItem.thumbnailUrl
-                                     && driveViewModel.selectedItem.thumbnailUrl.length > 0
-                            source: driveViewModel.selectedItem.thumbnailUrl || ""
-                            fillMode: Image.PreserveAspectFit
-                            asynchronous: true
-                            cache: false
-                        }
-
-                        VideoOutput {
-                            id: detailVideoOutput
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            visible: driveViewModel.previewState.mode === "video" && driveViewModel.previewState.source.length > 0
-                            fillMode: VideoOutput.PreserveAspectFit
-                        }
-
-                        GridLayout {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            columns: 2
-                            columnSpacing: 8
-                            rowSpacing: 8
-                            visible: driveViewModel.previewState.mode === "none"
-                                     && driveViewModel.selectedItem.isDir
-                                     && driveViewModel.selectedItem.thumbnailItems
-                                     && driveViewModel.selectedItem.thumbnailItems.length > 0
-
-                            Repeater {
-                                model: Math.min(4, driveViewModel.selectedItem.thumbnailItems ? driveViewModel.selectedItem.thumbnailItems.length : 0)
-
-                                delegate: Rectangle {
-                                    required property int index
-
-                                    Layout.fillWidth: true
-                                    Layout.fillHeight: true
-                                    radius: 12
-                                    color: "#ffffffd9"
-                                    clip: true
-
-                                    property var thumb: driveViewModel.selectedItem.thumbnailItems[index] || ({})
-
-                                    Image {
-                                        anchors.fill: parent
-                                        visible: thumb.thumbnailUrl && thumb.thumbnailUrl.length > 0
-                                        source: thumb.thumbnailUrl || ""
-                                        fillMode: Image.PreserveAspectCrop
-                                        asynchronous: true
-                                        cache: false
-                                    }
-
-                                    Text {
-                                        anchors.centerIn: parent
-                                        visible: !thumb.thumbnailUrl || thumb.thumbnailUrl.length === 0
-                                        text: thumb.kind === "video" ? "▶" : (thumb.kind === "image" ? "图" : "文")
-                                        color: ThemeSystem.Theme.colorPrimary
-                                        font.pixelSize: 18
-                                        font.bold: true
-                                        font.family: ThemeSystem.Theme.fontFamily
-                                    }
-                                }
-                            }
-                        }
-
-                        Rectangle {
-                            anchors.fill: parent
-                            visible: driveViewModel.previewState.mode === "none"
-                                     && (!driveViewModel.selectedItem.hasSelection
-                                         || (!driveViewModel.selectedItem.thumbnailUrl
-                                             && (!driveViewModel.selectedItem.thumbnailItems
-                                                 || driveViewModel.selectedItem.thumbnailItems.length === 0)))
-                            color: "transparent"
-
-                            Column {
-                                anchors.centerIn: parent
-                                width: parent.width - 40
-                                spacing: 8
-
-                                Text {
-                                    width: parent.width
-                                    text: driveViewModel.previewState.status
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: ThemeSystem.Theme.textSecondary
-                                    font.pixelSize: 14
-                                    font.bold: true
-                                    wrapMode: Text.WordWrap
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                }
-
-                                Text {
-                                    width: parent.width
-                                    text: driveViewModel.previewState.info
-                                    horizontalAlignment: Text.AlignHCenter
-                                    color: ThemeSystem.Theme.textTertiary
-                                    font.pixelSize: 12
-                                    wrapMode: Text.WordWrap
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                }
-                            }
-                        }
-                    }
-                }
-
-                RowLayout {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        radius: 16
-                        color: ThemeSystem.Theme.panelSurfaceSecondary
-                        border.width: 1
-                        border.color: ThemeSystem.Theme.cardBorder
-                        implicitHeight: 72
-
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 4
-
-                            Text {
-                                text: "大小"
-                                color: ThemeSystem.Theme.textTertiary
-                                font.pixelSize: 11
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-
-                            Text {
-                                text: driveViewModel.selectedItem.metaPrimary
-                                color: ThemeSystem.Theme.textPrimary
-                                font.pixelSize: 14
-                                font.bold: true
-                                wrapMode: Text.WordWrap
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        radius: 16
-                        color: ThemeSystem.Theme.panelSurfaceSecondary
-                        border.width: 1
-                        border.color: ThemeSystem.Theme.cardBorder
-                        implicitHeight: 72
-
-                        Column {
-                            anchors.fill: parent
-                            anchors.margins: 12
-                            spacing: 4
-
-                            Text {
-                                text: "时间"
-                                color: ThemeSystem.Theme.textTertiary
-                                font.pixelSize: 11
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-
-                            Text {
-                                text: driveViewModel.selectedItem.metaSecondary
-                                color: ThemeSystem.Theme.textPrimary
-                                font.pixelSize: 14
-                                font.bold: true
-                                wrapMode: Text.WordWrap
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-                        }
-                    }
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    width: parent.width
-                    spacing: 8
-
-                    DriveActionButton {
-                        visible: driveViewModel.selectedItem.canPreview
-                        text: "预览"
-                        iconName: "eye"
-                        tone: "primary"
-                        onClicked: driveViewModel.openPreview(driveViewModel.selectedItem.path)
-                    }
-
-                    DriveActionButton {
-                        visible: driveViewModel.selectedItem.canDownload
-                        text: driveViewModel.selectedItem.isDir ? "下载整组" : "下载"
-                        iconName: "download"
-                        tone: "neutral"
-                        onClicked: driveViewModel.downloadItem(driveViewModel.selectedItem.path)
-                    }
-
-                    DriveActionButton {
-                        visible: driveViewModel.selectedItem.canDelete
-                        text: driveViewModel.selectedItem.isDir ? "删除媒体组" : "删除"
-                        iconName: "trash"
-                        tone: "danger"
-                        onClicked: driveViewModel.deleteSelected()
-                    }
-
-                    DriveActionButton {
-                        visible: driveViewModel.previewState.mode !== "none"
-                        text: "关闭预览"
-                        iconName: "close"
-                        tone: "neutral"
-                        onClicked: driveViewModel.closePreview()
-                    }
-                }
-            }
-        }
-    }
-
-    GlassCard {
-        id: summaryCard
-
-        Layout.fillWidth: true
-        padding: 16
-        backgroundColor: "#f8fbff"
-        borderColor: "#dbe7f3"
-        shadowOpacity: 0.04
-        implicitHeight: summaryRow.implicitHeight + padding * 2
-
-        RowLayout {
-            id: summaryRow
-            anchors.fill: parent
-            spacing: 16
-
-            Text {
-                Layout.fillWidth: true
-                Layout.alignment: Qt.AlignVCenter
-                text: driveViewModel.channelSummary
-                color: ThemeSystem.Theme.textPrimary
-                font.pixelSize: 15
-                font.bold: true
-                font.family: ThemeSystem.Theme.fontFamily
-                elide: Text.ElideRight
-            }
-
-            RowLayout {
-                Layout.alignment: Qt.AlignVCenter
-                spacing: 8
-
-                AppTextField {
-                    Layout.preferredWidth: Math.max(240, Math.min(360, summaryCard.width * 0.24))
-                    text: driveViewModel.searchKeyword
-                    placeholderText: "搜索文件名、媒体组标题或说明"
-                    onTextEdited: driveViewModel.setSearchKeyword(text)
-                    onAccepted: driveViewModel.commitSearch()
-                }
-
-                DriveIconButton {
-                    iconName: "refresh"
-                    tone: "primary"
-                    enabled: !driveViewModel.busy
-                    spinning: driveViewModel.busy
-                    toolTipText: driveViewModel.busy ? "刷新中..." : "刷新"
-                    onClicked: driveViewModel.refresh()
-                }
-            }
-        }
-    }
-
-    FluentBanner {
-        Layout.fillWidth: true
-        visible: driveViewModel.errorMessage.length > 0
-        tone: "danger"
-        title: ""
-        description: driveViewModel.errorMessage
-    }
-
-    RowLayout {
-        Layout.fillWidth: true
-        Layout.alignment: Qt.AlignTop
-        spacing: 18
 
         GlassCard {
             id: workspaceCard
@@ -1302,11 +1144,11 @@ ResponsivePage {
                             spacing: 10
 
                             DriveIconButton {
-                                visible: driveViewModel.canNavigateUp
+                                visible: root.driveVm.canNavigateUp
                                 iconName: "back-up"
                                 tone: "neutral"
                                 toolTipText: "返回上级"
-                                onClicked: driveViewModel.navigateUp()
+                                onClicked: root.driveVm.navigateUp()
                             }
 
                             ColumnLayout {
@@ -1314,7 +1156,7 @@ ResponsivePage {
                                 spacing: 4
 
                                 Text {
-                                    text: driveViewModel.workspaceTitle
+                                    text: root.driveVm.workspaceTitle
                                     color: ThemeSystem.Theme.textPrimary
                                     font.pixelSize: 18
                                     font.bold: true
@@ -1323,7 +1165,7 @@ ResponsivePage {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: driveViewModel.breadcrumbText
+                                    text: root.driveVm.breadcrumbText
                                     color: ThemeSystem.Theme.textSecondary
                                     font.pixelSize: 12
                                     wrapMode: Text.WordWrap
@@ -1399,8 +1241,8 @@ ResponsivePage {
                                     id: chipButton
 
                                     text: root.sectionChipText(modelData.key, modelData.label)
-                                    active: driveViewModel.sidebarSection === modelData.key
-                                    onClicked: driveViewModel.setSidebarSection(modelData.key)
+                                    active: root.driveVm.sidebarSection === modelData.key
+                                    onClicked: root.driveVm.setSidebarSection(modelData.key)
                                 }
                             }
                         }
@@ -1426,16 +1268,16 @@ ResponsivePage {
                                     Layout.fillWidth: true
                                     text: "网格"
                                     iconName: "grid"
-                                    selected: driveViewModel.viewMode === "grid"
-                                    onClicked: driveViewModel.setViewMode("grid")
+                                    selected: root.driveVm.viewMode === "grid"
+                                    onClicked: root.driveVm.setViewMode("grid")
                                 }
 
                                 DriveSegmentButton {
                                     Layout.fillWidth: true
                                     text: "列表"
                                     iconName: "list"
-                                    selected: driveViewModel.viewMode === "list"
-                                    onClicked: driveViewModel.setViewMode("list")
+                                    selected: root.driveVm.viewMode === "list"
+                                    onClicked: root.driveVm.setViewMode("list")
                                 }
                             }
                         }
@@ -1448,21 +1290,14 @@ ResponsivePage {
 
                             Component.onCompleted: {
                                 for (var i = 0; i < root.sortOptions.length; i += 1) {
-                                    if (root.sortOptions[i].value === driveViewModel.sortOption) {
+                                    if (root.sortOptions[i].value === root.driveVm.sortOption) {
                                         currentIndex = i
                                         break
                                     }
                                 }
                             }
 
-                            onActivated: driveViewModel.setSortOption(root.sortOptions[currentIndex].value)
-                        }
-
-                        DriveActionButton {
-                            text: driveViewModel.detailPanelVisible ? "隐藏详情" : "显示详情"
-                            iconName: "detail"
-                            tone: driveViewModel.detailPanelVisible ? "info" : "neutral"
-                            onClicked: driveViewModel.toggleDetailPanel()
+                            onActivated: root.driveVm.setSortOption(root.sortOptions[currentIndex].value)
                         }
 
                     }
@@ -1470,7 +1305,7 @@ ResponsivePage {
 
                 Text {
                     Layout.fillWidth: true
-                    text: driveViewModel.filterSummary
+                    text: root.driveVm.filterSummary
                     color: ThemeSystem.Theme.textSecondary
                     font.pixelSize: 12
                     wrapMode: Text.WordWrap
@@ -1493,7 +1328,7 @@ ResponsivePage {
 
                         Text {
                             Layout.fillWidth: true
-                            text: driveViewModel.selectionSummary
+                            text: root.driveVm.selectionSummary
                             color: ThemeSystem.Theme.colorPrimary
                             font.pixelSize: 13
                             font.bold: true
@@ -1505,8 +1340,8 @@ ResponsivePage {
                             iconName: "open"
                             tone: "primary"
                             compact: true
-                            enabled: driveViewModel.openEnabled
-                            onClicked: driveViewModel.openSelection()
+                            enabled: root.driveVm.openEnabled
+                            onClicked: root.driveVm.openSelection()
                         }
 
                         DriveActionButton {
@@ -1514,8 +1349,8 @@ ResponsivePage {
                             iconName: "download"
                             tone: "neutral"
                             compact: true
-                            enabled: driveViewModel.batchDownloadEnabled
-                            onClicked: driveViewModel.batchDownloadSelected()
+                            enabled: root.driveVm.batchDownloadEnabled
+                            onClicked: root.driveVm.batchDownloadSelected()
                         }
 
                         DriveActionButton {
@@ -1523,8 +1358,8 @@ ResponsivePage {
                             iconName: "trash"
                             tone: "danger"
                             compact: true
-                            enabled: driveViewModel.batchDeleteEnabled
-                            onClicked: driveViewModel.batchDeleteSelected()
+                            enabled: root.driveVm.batchDeleteEnabled
+                            onClicked: root.driveVm.batchDeleteSelected()
                         }
 
                         DriveActionButton {
@@ -1532,8 +1367,8 @@ ResponsivePage {
                             iconName: "clear"
                             tone: "warning"
                             compact: true
-                            enabled: driveViewModel.hasSelection
-                            onClicked: driveViewModel.clearSelection()
+                            enabled: root.driveVm.hasSelection
+                            onClicked: root.driveVm.clearSelection()
                         }
                     }
                 }
@@ -1544,9 +1379,9 @@ ResponsivePage {
                     color: "#ffffff"
                     border.width: 1
                     border.color: "#eef2f6"
-                    implicitHeight: driveViewModel.itemsModel.count === 0
+                    implicitHeight: root.driveVm.itemsModel.count === 0
                                     ? 330
-                                    : (driveViewModel.viewMode === "grid" ? gridFlow.implicitHeight + 88 : listColumn.implicitHeight + 88)
+                                    : (root.driveVm.viewMode === "grid" ? gridFlow.implicitHeight + 88 : listColumn.implicitHeight + 88)
 
                     Column {
                         anchors.fill: parent
@@ -1562,10 +1397,10 @@ ResponsivePage {
 
                             width: parent.width
                             spacing: cardSpacing
-                            visible: driveViewModel.viewMode === "grid" && driveViewModel.itemsModel.count > 0
+                            visible: root.driveVm.viewMode === "grid" && root.driveVm.itemsModel.count > 0
 
                             Repeater {
-                                model: driveViewModel.itemsModel
+                                model: root.driveVm.itemsModel || []
                                 delegate: fileCardDelegate
                             }
                         }
@@ -1574,10 +1409,10 @@ ResponsivePage {
                             id: listColumn
                             width: parent.width
                             spacing: 10
-                            visible: driveViewModel.viewMode === "list" && driveViewModel.itemsModel.count > 0
+                            visible: root.driveVm.viewMode === "list" && root.driveVm.itemsModel.count > 0
 
                             Repeater {
-                                model: driveViewModel.itemsModel
+                                model: root.driveVm.itemsModel || []
                                 delegate: listRowDelegate
                             }
                         }
@@ -1586,7 +1421,7 @@ ResponsivePage {
                             width: parent.width
                             height: 220
                             radius: 18
-                            visible: driveViewModel.itemsModel.count === 0
+                            visible: root.driveVm.itemsModel.count === 0
                             color: "#f9fbfe"
                             border.width: 1
                             border.color: "#e7edf4"
@@ -1598,7 +1433,7 @@ ResponsivePage {
 
                                 Text {
                                     width: parent.width
-                                    text: driveViewModel.emptyState
+                                    text: root.driveVm.emptyState
                                     horizontalAlignment: Text.AlignHCenter
                                     wrapMode: Text.WordWrap
                                     color: ThemeSystem.Theme.textPrimary
@@ -1636,7 +1471,7 @@ ResponsivePage {
 
                                 Text {
                                     Layout.fillWidth: true
-                                    text: driveViewModel.pageSummary
+                                    text: root.driveVm.pageSummary
                                     color: ThemeSystem.Theme.textSecondary
                                     font.pixelSize: 12
                                     wrapMode: Text.WordWrap
@@ -1644,15 +1479,15 @@ ResponsivePage {
                                 }
 
                                 RowLayout {
-                                    visible: !driveViewModel.canNavigateUp
+                                    visible: !root.driveVm.canNavigateUp
                                     spacing: 8
 
                                     DriveActionButton {
                                         text: "上一页"
                                         tone: "neutral"
                                         compact: true
-                                        enabled: driveViewModel.canPreviousPage
-                                        onClicked: driveViewModel.previousPage()
+                                        enabled: root.driveVm.canPreviousPage
+                                        onClicked: root.driveVm.previousPage()
                                     }
 
                                     Rectangle {
@@ -1666,7 +1501,7 @@ ResponsivePage {
                                         Text {
                                             id: pageText
                                             anchors.centerIn: parent
-                                            text: driveViewModel.currentPage + " / " + driveViewModel.totalPages
+                                            text: root.driveVm.currentPage + " / " + root.driveVm.totalPages
                                             color: ThemeSystem.Theme.colorPrimary
                                             font.pixelSize: 12
                                             font.bold: true
@@ -1678,30 +1513,31 @@ ResponsivePage {
                                         text: "下一页"
                                         tone: "primary"
                                         compact: true
-                                        enabled: driveViewModel.canNextPage
-                                        onClicked: driveViewModel.nextPage()
+                                        enabled: root.driveVm.canNextPage
+                                        onClicked: root.driveVm.nextPage()
                                     }
                                 }
 
                                 DriveComboBox {
                                     id: pageSizeCombo
-                                    visible: !driveViewModel.canNavigateUp
+                                    visible: !root.driveVm.canNavigateUp
                                     implicitWidth: 110
                                     model: root.pageSizeOptions
 
                                     Component.onCompleted: {
-                                        currentIndex = Math.max(0, root.pageSizeOptions.indexOf(driveViewModel.pageSize))
+                                        currentIndex = Math.max(0, root.pageSizeOptions.indexOf(root.driveVm.pageSize))
                                     }
 
                                     Connections {
-                                        target: driveViewModel
+                                        target: driveViewModel || null
+                                        ignoreUnknownSignals: true
 
                                         function onPaginationChanged() {
-                                            pageSizeCombo.currentIndex = Math.max(0, root.pageSizeOptions.indexOf(driveViewModel.pageSize))
+                                            pageSizeCombo.currentIndex = Math.max(0, root.pageSizeOptions.indexOf(root.driveVm.pageSize))
                                         }
                                     }
 
-                                    onActivated: driveViewModel.setPageSize(root.pageSizeOptions[currentIndex])
+                                    onActivated: root.driveVm.setPageSize(root.pageSizeOptions[currentIndex])
                                 }
                             }
                         }
@@ -1710,19 +1546,6 @@ ResponsivePage {
             }
         }
 
-        Loader {
-            visible: root.showWideDetail
-            active: visible
-            Layout.preferredWidth: 332
-            Layout.alignment: Qt.AlignTop
-            sourceComponent: detailPaneComponent
-        }
     }
 
-    Loader {
-        visible: driveViewModel.detailPanelVisible && !root.showWideDetail
-        active: visible
-        Layout.fillWidth: true
-        sourceComponent: detailPaneComponent
-    }
-}
+

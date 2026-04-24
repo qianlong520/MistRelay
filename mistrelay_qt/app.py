@@ -36,6 +36,7 @@ from .viewmodels import (
 @dataclass(slots=True)
 class ApplicationContext:
     local_runtime_service: LocalRuntimeService
+    task_runner: TaskRunner
     app_view_model: AppViewModel
     login_view_model: LoginViewModel
     dashboard_view_model: DashboardViewModel
@@ -131,6 +132,7 @@ def build_application_context() -> ApplicationContext:
 
     return ApplicationContext(
         local_runtime_service=local_runtime_service,
+        task_runner=task_runner,
         app_view_model=app_view_model,
         login_view_model=login_view_model,
         dashboard_view_model=dashboard_view_model,
@@ -198,5 +200,6 @@ def main() -> int:
     context.app_view_model.bootstrap()
     application.aboutToQuit.connect(context.drive_view_model.closePreview)
     application.aboutToQuit.connect(context.settings_view_model.shutdown)
+    application.aboutToQuit.connect(context.task_runner.shutdown)
     application.aboutToQuit.connect(context.local_runtime_service.shutdown)
     return application.exec()

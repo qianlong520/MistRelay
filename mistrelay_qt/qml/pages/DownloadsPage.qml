@@ -1,4 +1,4 @@
-import QtQuick
+﻿import QtQuick
 import QtQuick.Controls
 import QtQuick.Layouts
 import "../theme" as ThemeSystem
@@ -7,13 +7,45 @@ import "../components"
 ResponsivePage {
     id: root
 
+    readonly property var downloadsVm: downloadsViewModel || ({
+        visibleTaskFlowModel: null,
+        taskSection: "server",
+        unifiedKeyword: "",
+        unifiedStatusFilter: "all",
+        queueFloodWaitText: "",
+        currentPage: 1,
+        pageSize: 10,
+        totalPages: 1,
+        pageSummary: "当前没有匹配的任务",
+        canPreviousPage: false,
+        canNextPage: false,
+        errorMessage: "",
+        busy: false,
+        refresh: function() {},
+        setTaskSection: function() {},
+        setUnifiedKeyword: function() {},
+        setUnifiedStatusFilter: function() {},
+        previousPage: function() {},
+        nextPage: function() {},
+        setPageSize: function() {},
+        retryServerDownload: function() {},
+        deleteServerDownload: function() {},
+        retryUpload: function() {},
+        deleteUpload: function() {},
+        cancelLocalDownload: function() {},
+        retryLocalDownload: function() {},
+        openLocalFile: function() {},
+        showLocalFileInFolder: function() {},
+        removeLocalDownload: function() {}
+    })
+
     horizontalPadding: 24
     verticalPadding: 22
     sectionSpacing: 0
 
     Component.onCompleted: {
-        if (!downloadsViewModel.busy) {
-            downloadsViewModel.refresh()
+        if (!root.downloadsVm.busy) {
+            root.downloadsVm.refresh()
         }
     }
 
@@ -32,10 +64,11 @@ ResponsivePage {
     property string expandedGroupKey: ""
     property var detailFile: ({})
     property string detailGroupTitle: ""
+    property var pageSizeOptions: [10, 30, 60, 100]
 
-    readonly property bool hasRows: downloadsViewModel.visibleTaskFlowModel.count > 0
+    readonly property bool hasRows: root.downloadsVm.visibleTaskFlowModel && root.downloadsVm.visibleTaskFlowModel.count > 0
     readonly property string emptyDescription: {
-        switch (downloadsViewModel.taskSection) {
+        switch (root.downloadsVm.taskSection) {
         case "queue":
             return "队列为空"
         case "local":
@@ -205,7 +238,14 @@ ResponsivePage {
 
             Layout.fillWidth: true
             color: rowMouse.containsMouse ? "#fafcff" : "#ffffff"
-            implicitHeight: rowLayout.implicitHeight + 26
+            implicitHeight: tableRow.implicitHeight + 18
+
+            function progressLabel(value) {
+                if (value === undefined || value === null || Number(value) <= 0) {
+                    return "-"
+                }
+                return Math.round(Number(value)) + "%"
+            }
 
             Rectangle {
                 anchors.left: parent.left
@@ -222,62 +262,40 @@ ResponsivePage {
                 acceptedButtons: Qt.NoButton
             }
 
-            ColumnLayout {
-                id: rowLayout
+            RowLayout {
+                id: tableRow
                 anchors.fill: parent
                 anchors.leftMargin: 16
                 anchors.rightMargin: 16
-                anchors.topMargin: 13
-                anchors.bottomMargin: 13
-                spacing: 10
+                anchors.topMargin: 9
+                anchors.bottomMargin: 9
+                spacing: 16
 
-                RowLayout {
+                ColumnLayout {
                     Layout.fillWidth: true
-                    spacing: 12
+                    Layout.minimumWidth: 220
+                    spacing: 4
 
-                    ColumnLayout {
+                    RowLayout {
                         Layout.fillWidth: true
-                        spacing: 6
+                        spacing: 8
 
-                        RowLayout {
-                            spacing: 8
+                        Rectangle {
+                            radius: 999
+                            color: "#f4f7fb"
+                            border.width: 1
+                            border.color: "#e5ebf3"
+                            implicitWidth: typeText.implicitWidth + 14
+                            implicitHeight: 24
 
-                            Rectangle {
-                                radius: 999
-                                color: "#f4f7fb"
-                                border.width: 1
-                                border.color: "#e5ebf3"
-                                implicitWidth: typeText.implicitWidth + 14
-                                implicitHeight: 24
-
-                                Text {
-                                    id: typeText
-                                    anchors.centerIn: parent
-                                    text: typeLabel
-                                    color: ThemeSystem.Theme.textSecondary
-                                    font.pixelSize: 11
-                                    font.bold: true
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                }
-                            }
-
-                            Rectangle {
-                                radius: 999
-                                color: root.toneSoftColor(statusTone)
-                                border.width: 1
-                                border.color: Qt.rgba(root.toneColor(statusTone).r, root.toneColor(statusTone).g, root.toneColor(statusTone).b, 0.22)
-                                implicitWidth: statusText.implicitWidth + 14
-                                implicitHeight: 24
-
-                                Text {
-                                    id: statusText
-                                    anchors.centerIn: parent
-                                    text: statusLabel
-                                    color: root.toneColor(statusTone)
-                                    font.pixelSize: 11
-                                    font.bold: true
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                }
+                            Text {
+                                id: typeText
+                                anchors.centerIn: parent
+                                text: typeLabel
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 11
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
                             }
                         }
 
@@ -285,144 +303,181 @@ ResponsivePage {
                             Layout.fillWidth: true
                             text: title
                             color: ThemeSystem.Theme.textPrimary
-                            font.pixelSize: 15
+                            font.pixelSize: 13
                             font.bold: true
                             font.family: ThemeSystem.Theme.fontFamily
-                            wrapMode: Text.WordWrap
                             elide: Text.ElideRight
-                        }
-
-                        Text {
-                            Layout.fillWidth: true
-                            visible: subtitle.length > 0
-                            text: subtitle
-                            color: ThemeSystem.Theme.textSecondary
-                            font.pixelSize: 13
-                            font.family: ThemeSystem.Theme.fontFamily
-                            wrapMode: Text.WordWrap
-                            elide: Text.ElideMiddle
+                            maximumLineCount: 1
                         }
                     }
 
-                    Flow {
-                        Layout.alignment: Qt.AlignTop | Qt.AlignRight
-                        spacing: 8
+                    Text {
+                        Layout.fillWidth: true
+                        visible: subtitle.length > 0
+                        text: subtitle
+                        color: ThemeSystem.Theme.textSecondary
+                        font.pixelSize: 11
+                        font.family: ThemeSystem.Theme.fontFamily
+                        elide: Text.ElideRight
+                        maximumLineCount: 1
+                    }
 
-                        GhostPillButton {
-                            visible: rowType === "download" && canRetry
-                            text: "重试"
-                            tone: "primary"
-                            onClicked: downloadsViewModel.retryServerDownload(gid)
-                        }
+                    Text {
+                        Layout.fillWidth: true
+                        visible: error.length > 0
+                        text: error
+                        color: ThemeSystem.Theme.colorDanger
+                        font.pixelSize: 11
+                        font.family: ThemeSystem.Theme.fontFamily
+                        wrapMode: Text.WordWrap
+                        elide: Text.ElideRight
+                        maximumLineCount: 2
+                    }
+                }
+
+                Rectangle {
+                    Layout.preferredWidth: 110
+                    Layout.preferredHeight: 26
+                    radius: 999
+                    color: root.toneSoftColor(statusTone)
+                    border.width: 1
+                    border.color: Qt.rgba(root.toneColor(statusTone).r, root.toneColor(statusTone).g, root.toneColor(statusTone).b, 0.22)
+
+                    Text {
+                        anchors.centerIn: parent
+                        text: statusLabel
+                        color: root.toneColor(statusTone)
+                        font.pixelSize: 11
+                        font.bold: true
+                        font.family: ThemeSystem.Theme.fontFamily
+                        elide: Text.ElideRight
+                    }
+                }
+
+                ColumnLayout {
+                    Layout.preferredWidth: 110
+                    spacing: 5
+
+                    Text {
+                        Layout.fillWidth: true
+                        text: rowRoot.progressLabel(progressPercent)
+                        color: progressPercent > 0 ? ThemeSystem.Theme.textPrimary : ThemeSystem.Theme.textSecondary
+                        font.pixelSize: 12
+                        font.bold: progressPercent > 0
+                        font.family: ThemeSystem.Theme.fontFamily
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+
+                    ProgressBar {
+                        Layout.fillWidth: true
+                        visible: progressPercent > 0 && progressPercent < 100
+                        from: 0
+                        to: 100
+                        value: progressPercent
+                    }
+                }
+
+                Text {
+                    Layout.preferredWidth: 110
+                    text: root.displayValue(sizeText)
+                    color: ThemeSystem.Theme.textPrimary
+                    font.pixelSize: 12
+                    font.family: ThemeSystem.Theme.fontFamily
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+
+                Text {
+                    Layout.preferredWidth: 150
+                    text: root.displayValue(metaSecondary)
+                    color: ThemeSystem.Theme.textPrimary
+                    font.pixelSize: 12
+                    font.family: ThemeSystem.Theme.fontFamily
+                    elide: Text.ElideRight
+                    maximumLineCount: 1
+                }
+
+                Item {
+                    Layout.preferredWidth: 180
+                    Layout.preferredHeight: Math.max(actionsFlow.implicitHeight, 30)
+
+                    MouseArea {
+                        anchors.fill: parent
+                        acceptedButtons: Qt.LeftButton
+                        onClicked: mouse.accepted = true
+                    }
+
+                    Flow {
+                        id: actionsFlow
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        width: parent.width
+                        spacing: 8
+                        layoutDirection: Qt.RightToLeft
 
                         GhostPillButton {
                             visible: rowType === "download" && canDelete
-                            text: "删除"
+                            text: "??"
                             tone: "danger"
                             onClicked: downloadsViewModel.deleteServerDownload(gid)
                         }
 
                         GhostPillButton {
-                            visible: rowType === "upload" && canRetry
-                            text: "重试"
+                            visible: rowType === "download" && canRetry
+                            text: "??"
                             tone: "primary"
-                            onClicked: downloadsViewModel.retryUpload(uploadId)
+                            onClicked: downloadsViewModel.retryServerDownload(gid)
                         }
 
                         GhostPillButton {
                             visible: rowType === "upload" && canDelete
-                            text: "删除"
+                            text: "??"
                             tone: "danger"
                             onClicked: downloadsViewModel.deleteUpload(uploadId)
                         }
 
                         GhostPillButton {
-                            visible: rowType === "local" && canCancel
-                            text: "取消"
-                            tone: "warning"
-                            onClicked: downloadsViewModel.cancelLocalDownload(transferId)
+                            visible: rowType === "upload" && canRetry
+                            text: "??"
+                            tone: "primary"
+                            onClicked: downloadsViewModel.retryUpload(uploadId)
                         }
 
                         GhostPillButton {
-                            visible: rowType === "local" && canRetry
-                            text: "重试"
-                            tone: "primary"
-                            onClicked: downloadsViewModel.retryLocalDownload(transferId)
-                        }
-
-                        GhostPillButton {
-                            visible: rowType === "local" && canOpen
-                            text: "打开文件"
-                            tone: "primary"
-                            onClicked: downloadsViewModel.openLocalFile(localPath)
+                            visible: rowType === "local" && canDelete
+                            text: "??"
+                            tone: "danger"
+                            onClicked: downloadsViewModel.removeLocalDownload(transferId)
                         }
 
                         GhostPillButton {
                             visible: rowType === "local" && canReveal
-                            text: "打开目录"
+                            text: "????"
                             tone: "neutral"
                             onClicked: downloadsViewModel.showLocalFileInFolder(localPath)
                         }
 
                         GhostPillButton {
-                            visible: rowType === "local" && canDelete
-                            text: "删除"
-                            tone: "danger"
-                            onClicked: downloadsViewModel.removeLocalDownload(transferId)
+                            visible: rowType === "local" && canOpen
+                            text: "????"
+                            tone: "primary"
+                            onClicked: downloadsViewModel.openLocalFile(localPath)
+                        }
+
+                        GhostPillButton {
+                            visible: rowType === "local" && canRetry
+                            text: "??"
+                            tone: "primary"
+                            onClicked: downloadsViewModel.retryLocalDownload(transferId)
+                        }
+
+                        GhostPillButton {
+                            visible: rowType === "local" && canCancel
+                            text: "??"
+                            tone: "warning"
+                            onClicked: downloadsViewModel.cancelLocalDownload(transferId)
                         }
                     }
-                }
-
-                ProgressBar {
-                    Layout.fillWidth: true
-                    visible: progressPercent > 0 && progressPercent < 100
-                    from: 0
-                    to: 100
-                    value: progressPercent
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 8
-
-                    Repeater {
-                        model: [
-                            sizeText,
-                            metaPrimary,
-                            metaSecondary
-                        ]
-
-                        delegate: Rectangle {
-                            required property string modelData
-
-                            visible: modelData.length > 0
-                            radius: 999
-                            color: "#f7f9fc"
-                            border.width: 1
-                            border.color: "#ebeff4"
-                            implicitWidth: chipLabel.implicitWidth + 16
-                            implicitHeight: 26
-
-                            Text {
-                                id: chipLabel
-                                anchors.centerIn: parent
-                                text: modelData
-                                color: ThemeSystem.Theme.textSecondary
-                                font.pixelSize: 11
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-                        }
-                    }
-                }
-
-                Text {
-                    visible: error.length > 0
-                    Layout.fillWidth: true
-                    text: error
-                    color: ThemeSystem.Theme.colorDanger
-                    font.pixelSize: 12
-                    wrapMode: Text.WordWrap
-                    font.family: ThemeSystem.Theme.fontFamily
                 }
             }
         }
@@ -662,10 +717,10 @@ ResponsivePage {
                     Rectangle {
                         Layout.fillWidth: true
                         color: "#fbfcfe"
-                        implicitHeight: tableHeader.implicitHeight + 18
+                        implicitHeight: groupFileTableHeader.implicitHeight + 18
 
                         RowLayout {
-                            id: tableHeader
+                            id: groupFileTableHeader
                             anchors.fill: parent
                             anchors.leftMargin: 20
                             anchors.rightMargin: 20
@@ -675,8 +730,8 @@ ResponsivePage {
 
                             Text {
                                 Layout.fillWidth: true
-                                Layout.minimumWidth: 240
-                                text: "文件名"
+                                Layout.minimumWidth: 220
+                                text: "资源名"
                                 color: ThemeSystem.Theme.textSecondary
                                 font.pixelSize: 12
                                 font.bold: true
@@ -693,26 +748,17 @@ ResponsivePage {
                             }
 
                             Text {
+                                Layout.preferredWidth: 156
+                                text: "时间"
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+
+                            Text {
                                 Layout.preferredWidth: 110
                                 text: "状态"
-                                color: ThemeSystem.Theme.textSecondary
-                                font.pixelSize: 12
-                                font.bold: true
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-
-                            Text {
-                                Layout.preferredWidth: root.compact ? 180 : 260
-                                text: "远程路径"
-                                color: ThemeSystem.Theme.textSecondary
-                                font.pixelSize: 12
-                                font.bold: true
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-
-                            Text {
-                                Layout.preferredWidth: 156
-                                text: "创建时间"
                                 color: ThemeSystem.Theme.textSecondary
                                 font.pixelSize: 12
                                 font.bold: true
@@ -808,6 +854,16 @@ ResponsivePage {
                                     font.family: ThemeSystem.Theme.fontFamily
                                 }
 
+                                Text {
+                                    Layout.preferredWidth: 156
+                                    text: root.displayValue(fileItem.createdAtText)
+                                    color: ThemeSystem.Theme.textPrimary
+                                    font.pixelSize: 12
+                                    font.family: ThemeSystem.Theme.fontFamily
+                                    elide: Text.ElideRight
+                                    maximumLineCount: 1
+                                }
+
                                 Rectangle {
                                     Layout.preferredWidth: 110
                                     Layout.preferredHeight: 26
@@ -824,25 +880,6 @@ ResponsivePage {
                                         font.bold: true
                                         font.family: ThemeSystem.Theme.fontFamily
                                     }
-                                }
-
-                                Text {
-                                    Layout.preferredWidth: root.compact ? 180 : 260
-                                    text: root.joinedDisplayValue(fileItem.remotePathEntries && fileItem.remotePathEntries.length > 0 ? fileItem.remotePathEntries : [fileItem.remotePath])
-                                    color: text !== "-" ? "#1c8b56" : ThemeSystem.Theme.textSecondary
-                                    font.pixelSize: 12
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                    wrapMode: Text.WrapAnywhere
-                                    elide: Text.ElideMiddle
-                                    maximumLineCount: 3
-                                }
-
-                                Text {
-                                    Layout.preferredWidth: 156
-                                    text: root.displayValue(fileItem.createdAtText)
-                                    color: ThemeSystem.Theme.textPrimary
-                                    font.pixelSize: 12
-                                    font.family: ThemeSystem.Theme.fontFamily
                                 }
 
                                 Item {
@@ -871,14 +908,14 @@ ResponsivePage {
                                             visible: Boolean(fileItem.canRetry)
                                             text: "重试"
                                             tone: "primary"
-                                            onClicked: downloadsViewModel.retryServerDownload(fileItem.gid)
+                                            onClicked: root.downloadsVm.retryServerDownload(fileItem.gid)
                                         }
 
                                         GhostPillButton {
                                             visible: Boolean(fileItem.canDelete)
                                             text: "删除"
                                             tone: "danger"
-                                            onClicked: downloadsViewModel.deleteServerDownload(fileItem.gid)
+                                            onClicked: root.downloadsVm.deleteServerDownload(fileItem.gid)
                                         }
                                     }
                                 }
@@ -1225,8 +1262,8 @@ ResponsivePage {
                     TaskSegmentedControl {
                         Layout.fillWidth: true
                         options: root.sectionOptions
-                        currentValue: downloadsViewModel.taskSection
-                        onValueSelected: downloadsViewModel.setTaskSection(value)
+                        currentValue: root.downloadsVm.taskSection
+                        onValueSelected: root.downloadsVm.setTaskSection(value)
                     }
 
                     GridLayout {
@@ -1237,41 +1274,41 @@ ResponsivePage {
 
                         AppTextField {
                             Layout.fillWidth: true
-                            text: downloadsViewModel.unifiedKeyword
+                            text: root.downloadsVm.unifiedKeyword
                             placeholderText: "搜索任务、文件名、状态或路径"
-                            onTextEdited: downloadsViewModel.setUnifiedKeyword(text)
+                            onTextEdited: root.downloadsVm.setUnifiedKeyword(text)
                         }
 
                         TaskSegmentedControl {
                             Layout.fillWidth: true
                             options: root.unifiedFilterOptions
-                            currentValue: downloadsViewModel.unifiedStatusFilter
-                            onValueSelected: downloadsViewModel.setUnifiedStatusFilter(value)
+                            currentValue: root.downloadsVm.unifiedStatusFilter
+                            onValueSelected: root.downloadsVm.setUnifiedStatusFilter(value)
                         }
                     }
                 }
             }
 
             Loader {
-                active: downloadsViewModel.errorMessage.length > 0
+                active: root.downloadsVm.errorMessage.length > 0
                 sourceComponent: inlineMessageBanner
 
                 onLoaded: {
                     item.message = Qt.binding(function() {
-                        return downloadsViewModel.errorMessage
+                        return root.downloadsVm.errorMessage
                     })
                     item.tone = "danger"
                 }
             }
 
             Loader {
-                active: downloadsViewModel.taskSection === "queue"
-                        && downloadsViewModel.queueFloodWaitText.length > 0
+                active: root.downloadsVm.taskSection === "queue"
+                        && root.downloadsVm.queueFloodWaitText.length > 0
                 sourceComponent: inlineMessageBanner
 
                 onLoaded: {
                     item.message = Qt.binding(function() {
-                        return downloadsViewModel.queueFloodWaitText
+                        return root.downloadsVm.queueFloodWaitText
                     })
                     item.tone = "warning"
                 }
@@ -1292,8 +1329,82 @@ ResponsivePage {
                     anchors.bottomMargin: 4
                     spacing: 0
 
+                    Rectangle {
+                        visible: root.hasRows
+                        Layout.fillWidth: true
+                        color: "#fbfcfe"
+                        implicitHeight: taskTableHeader.implicitHeight + 18
+
+                        RowLayout {
+                            id: taskTableHeader
+                            anchors.fill: parent
+                            anchors.leftMargin: 16
+                            anchors.rightMargin: 16
+                            anchors.topMargin: 9
+                            anchors.bottomMargin: 9
+                            spacing: 16
+
+                            Text {
+                                Layout.fillWidth: true
+                                Layout.minimumWidth: 240
+                                text: "资源名"
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+
+                            Text {
+                                Layout.preferredWidth: 110
+                                text: "状态"
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+
+                            Text {
+                                Layout.preferredWidth: 110
+                                horizontalAlignment: Text.AlignHCenter
+                                text: "进度"
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+
+                            Text {
+                                Layout.preferredWidth: 110
+                                text: "大小"
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+
+                            Text {
+                                Layout.preferredWidth: 150
+                                text: "时间"
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+
+                            Text {
+                                Layout.preferredWidth: 180
+                                horizontalAlignment: Text.AlignRight
+                                text: "操作"
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                font.bold: true
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+                        }
+                    }
+
                     Repeater {
-                        model: downloadsViewModel.visibleTaskFlowModel
+                        model: root.downloadsVm.visibleTaskFlowModel || []
 
                         delegate: Item {
                             id: taskFlowDelegate
@@ -1318,21 +1429,6 @@ ResponsivePage {
                             property bool canCancel: false
                             property bool canOpen: false
                             property bool canReveal: false
-                            property string groupKey: ""
-                            property string captionText: ""
-                            property string messageId: ""
-                            property string groupType: ""
-                            property string groupTypeLabel: ""
-                            property string fileCountLabel: ""
-                            property string completedLabel: ""
-                            property string downloadingLabel: ""
-                            property string skippedLabel: ""
-                            property string failedLabel: ""
-                            property bool hasDownloading: false
-                            property bool hasSkipped: false
-                            property bool hasFailed: false
-                            property string createdAtText: ""
-                            property var files: []
                             property Item currentItem: null
 
                             Layout.fillWidth: true
@@ -1344,63 +1440,35 @@ ResponsivePage {
                             }
 
                             function createDelegate() {
-                                var component = rowType === "group" ? groupRecordRow : unifiedTaskRow
-                                var props
-
                                 if (currentItem) {
                                     currentItem.destroy()
                                     currentItem = null
                                 }
 
-                                if (rowType === "group") {
-                                    props = {
-                                        groupKey: groupKey,
-                                        title: title,
-                                        captionText: captionText,
-                                        messageId: messageId,
-                                        groupType: groupType,
-                                        groupTypeLabel: groupTypeLabel,
-                                        statusLabel: statusLabel,
-                                        statusTone: statusTone,
-                                        fileCountLabel: fileCountLabel,
-                                        completedLabel: completedLabel,
-                                        downloadingLabel: downloadingLabel,
-                                        skippedLabel: skippedLabel,
-                                        failedLabel: failedLabel,
-                                        hasDownloading: hasDownloading,
-                                        hasSkipped: hasSkipped,
-                                        hasFailed: hasFailed,
-                                        createdAtText: createdAtText,
-                                        sizeText: sizeText,
-                                        progressPercent: progressPercent,
-                                        files: files
-                                    }
-                                } else {
-                                    props = {
-                                        rowType: rowType,
-                                        typeLabel: typeLabel,
-                                        title: title,
-                                        subtitle: subtitle,
-                                        statusLabel: statusLabel,
-                                        statusTone: statusTone,
-                                        progressPercent: progressPercent,
-                                        sizeText: sizeText,
-                                        metaPrimary: metaPrimary,
-                                        metaSecondary: metaSecondary,
-                                        error: error,
-                                        gid: gid,
-                                        uploadId: uploadId,
-                                        transferId: transferId,
-                                        localPath: localPath,
-                                        canRetry: canRetry,
-                                        canDelete: canDelete,
-                                        canCancel: canCancel,
-                                        canOpen: canOpen,
-                                        canReveal: canReveal
-                                    }
+                                var props = {
+                                    rowType: rowType,
+                                    typeLabel: typeLabel,
+                                    title: title,
+                                    subtitle: subtitle,
+                                    statusLabel: statusLabel,
+                                    statusTone: statusTone,
+                                    progressPercent: progressPercent,
+                                    sizeText: sizeText,
+                                    metaPrimary: metaPrimary,
+                                    metaSecondary: metaSecondary,
+                                    error: error,
+                                    gid: gid,
+                                    uploadId: uploadId,
+                                    transferId: transferId,
+                                    localPath: localPath,
+                                    canRetry: canRetry,
+                                    canDelete: canDelete,
+                                    canCancel: canCancel,
+                                    canOpen: canOpen,
+                                    canReveal: canReveal
                                 }
 
-                                currentItem = component.createObject(delegateHost, props)
+                                currentItem = unifiedTaskRow.createObject(delegateHost, props)
                                 if (currentItem) {
                                     currentItem.width = taskFlowDelegate.width
                                 }
@@ -1423,6 +1491,96 @@ ResponsivePage {
 
                         onLoaded: {
                             item.description = root.emptyDescription
+                        }
+                    }
+
+                    Rectangle {
+                        visible: root.hasRows
+                        Layout.fillWidth: true
+                        color: "#fbfcfe"
+                        border.width: 1
+                        border.color: "#edf1f6"
+                        implicitHeight: pagerRow.implicitHeight + 24
+
+                        RowLayout {
+                            id: pagerRow
+                            anchors.fill: parent
+                            anchors.margins: 12
+                            spacing: 12
+
+                            Text {
+                                Layout.fillWidth: true
+                                text: root.downloadsVm.pageSummary
+                                color: ThemeSystem.Theme.textSecondary
+                                font.pixelSize: 12
+                                wrapMode: Text.WordWrap
+                                font.family: ThemeSystem.Theme.fontFamily
+                            }
+
+                            GhostPillButton {
+                                text: "上一页"
+                                tone: "neutral"
+                                enabled: root.downloadsVm.canPreviousPage
+                                onClicked: root.downloadsVm.previousPage()
+                            }
+
+                            Rectangle {
+                                radius: 999
+                                color: "#ffffff"
+                                border.width: 1
+                                border.color: "#cfe2ff"
+                                implicitHeight: 34
+                                implicitWidth: pageText.implicitWidth + 22
+
+                                Text {
+                                    id: pageText
+                                    anchors.centerIn: parent
+                                    text: root.downloadsVm.currentPage + " / " + root.downloadsVm.totalPages
+                                    color: ThemeSystem.Theme.colorPrimary
+                                    font.pixelSize: 12
+                                    font.bold: true
+                                    font.family: ThemeSystem.Theme.fontFamily
+                                }
+                            }
+
+                            GhostPillButton {
+                                text: "下一页"
+                                tone: "primary"
+                                enabled: root.downloadsVm.canNextPage
+                                onClicked: root.downloadsVm.nextPage()
+                            }
+
+                            ComboBox {
+                                id: pageSizeCombo
+                                implicitWidth: 104
+                                model: root.pageSizeOptions
+
+                                Component.onCompleted: {
+                                    currentIndex = Math.max(0, root.pageSizeOptions.indexOf(root.downloadsVm.pageSize))
+                                }
+
+                                Connections {
+                                    target: downloadsViewModel || null
+                                    ignoreUnknownSignals: true
+
+                                    function onPaginationChanged() {
+                                        pageSizeCombo.currentIndex = Math.max(0, root.pageSizeOptions.indexOf(root.downloadsVm.pageSize))
+                                    }
+                                }
+
+                                contentItem: Text {
+                                    leftPadding: 10
+                                    rightPadding: 24
+                                    verticalAlignment: Text.AlignVCenter
+                                    text: pageSizeCombo.displayText + " 条/页"
+                                    color: ThemeSystem.Theme.textPrimary
+                                    font.pixelSize: 12
+                                    font.family: ThemeSystem.Theme.fontFamily
+                                    elide: Text.ElideRight
+                                }
+
+                                onActivated: root.downloadsVm.setPageSize(root.pageSizeOptions[currentIndex])
+                            }
                         }
                     }
                 }

@@ -9,16 +9,32 @@ import "../components"
 ResponsivePage {
     id: root
 
+    readonly property var appVm: appViewModel || ({
+        currentRoute: "dashboard",
+        navigate: function() {}
+    })
+    readonly property var dashboardVm: dashboardViewModel || ({
+        statCards: root.placeholderStatCards(),
+        resourceCards: [],
+        trendPoints: [],
+        recentDownloads: root.placeholderRecentDownloads(),
+        systemInfo: root.placeholderSystemInfo(),
+        botLoadRows: [],
+        busy: false,
+        errorMessage: "",
+        refresh: function() {}
+    })
+
     horizontalPadding: 26
     verticalPadding: 24
     sectionSpacing: 24
 
-    readonly property var statCards: dashboardViewModel.statCards
-    readonly property var resourceCards: dashboardViewModel.resourceCards
-    readonly property var trendPoints: dashboardViewModel.trendPoints
-    readonly property var recentDownloads: dashboardViewModel.recentDownloads
-    readonly property var systemInfo: dashboardViewModel.systemInfo
-    readonly property var botLoadRows: dashboardViewModel.botLoadRows
+    readonly property var statCards: root.dashboardVm.statCards
+    readonly property var resourceCards: root.dashboardVm.resourceCards
+    readonly property var trendPoints: root.dashboardVm.trendPoints
+    readonly property var recentDownloads: root.dashboardVm.recentDownloads
+    readonly property var systemInfo: root.dashboardVm.systemInfo
+    readonly property var botLoadRows: root.dashboardVm.botLoadRows
     readonly property int resourceColumns: compact ? 1 : 3
     readonly property int topRowHeight: compact ? -1 : 436
     readonly property int secondRowHeight: compact ? -1 : 420
@@ -139,22 +155,22 @@ ResponsivePage {
     }
 
     Component.onCompleted: {
-        if (!dashboardViewModel.busy
+        if (!root.dashboardVm.busy
                 && root.statCards.length === 0
                 && root.resourceCards.length === 0
                 && root.recentDownloads.length === 0) {
-            dashboardViewModel.refresh()
+            root.dashboardVm.refresh()
         }
     }
 
     Timer {
         interval: 1000
         repeat: true
-        running: root.visible && appViewModel.currentRoute === "dashboard"
+        running: root.visible && root.appVm.currentRoute === "dashboard"
         triggeredOnStart: false
         onTriggered: {
-            if (!dashboardViewModel.busy)
-                dashboardViewModel.refresh()
+            if (!root.dashboardVm.busy)
+                root.dashboardVm.refresh()
         }
     }
 
@@ -163,10 +179,10 @@ ResponsivePage {
 
     FluentBanner {
         Layout.fillWidth: true
-        visible: dashboardViewModel.errorMessage.length > 0
+        visible: root.dashboardVm.errorMessage.length > 0
         tone: "danger"
         title: "首页数据拉取失败"
-        description: dashboardViewModel.errorMessage
+        description: root.dashboardVm.errorMessage
     }
 
     GlassCard {
@@ -752,7 +768,7 @@ ResponsivePage {
                             font.family: ThemeSystem.Theme.fontFamily
                         }
 
-                        onClicked: appViewModel.navigate("downloads")
+                        onClicked: root.appVm.navigate("downloads")
                     }
                 }
 

@@ -9,8 +9,24 @@ import "pages"
 ApplicationWindow {
     id: window
 
+    readonly property var appVm: appViewModel || ({
+        windowTitle: "MistRelay",
+        loggedIn: false
+    })
+    readonly property var updateVm: updateViewModel || ({
+        promptVisible: false,
+        updateVersion: "",
+        updateState: "",
+        updateProgressPercent: -1,
+        updateNotes: "",
+        busy: false,
+        startupCheck: function() {},
+        dismissPrompt: function() {},
+        installUpdate: function() {}
+    })
+
     visible: false
-    title: appViewModel.windowTitle
+    title: window.appVm.windowTitle
     color: ThemeSystem.Theme.surface
     readonly property bool promptCompact: width < 760
     Universal.theme: Universal.Light
@@ -19,7 +35,7 @@ ApplicationWindow {
     font.family: ThemeSystem.Theme.fontFamily
 
     Component.onCompleted: Qt.callLater(function() {
-        updateViewModel.startupCheck()
+        window.updateVm.startupCheck()
     })
 
     Rectangle {
@@ -45,7 +61,7 @@ ApplicationWindow {
 
     Loader {
         anchors.fill: parent
-        sourceComponent: appViewModel.loggedIn ? shellComponent : loginComponent
+        sourceComponent: window.appVm.loggedIn ? shellComponent : loginComponent
         opacity: status === Loader.Ready ? 1 : 0
 
         Behavior on opacity {
@@ -55,7 +71,7 @@ ApplicationWindow {
 
     Item {
         anchors.fill: parent
-        visible: updateViewModel.promptVisible
+        visible: window.updateVm.promptVisible
         z: 20
 
         Rectangle {
@@ -100,7 +116,7 @@ ApplicationWindow {
 
                 Text {
                     Layout.fillWidth: true
-                    text: "MistRelay v" + updateViewModel.updateVersion + " 已可用"
+                    text: "MistRelay v" + window.updateVm.updateVersion + " 已可用"
                     color: ThemeSystem.Theme.textPrimary
                     font.pixelSize: 28
                     font.bold: true
@@ -110,7 +126,7 @@ ApplicationWindow {
 
                 Text {
                     Layout.fillWidth: true
-                    text: updateViewModel.updateState
+                    text: window.updateVm.updateState
                     color: ThemeSystem.Theme.textSecondary
                     font.pixelSize: 14
                     wrapMode: Text.WordWrap
@@ -118,15 +134,15 @@ ApplicationWindow {
                 }
 
                 ProgressBar {
-                    visible: updateViewModel.updateProgressPercent >= 0
+                    visible: window.updateVm.updateProgressPercent >= 0
                     Layout.fillWidth: true
                     from: 0
                     to: 100
-                    value: updateViewModel.updateProgressPercent
+                    value: window.updateVm.updateProgressPercent
                 }
 
                 Rectangle {
-                    visible: updateViewModel.updateNotes.length > 0
+                    visible: window.updateVm.updateNotes.length > 0
                     Layout.fillWidth: true
                     radius: ThemeSystem.Theme.radiusMedium
                     color: ThemeSystem.Theme.panelSurfaceSecondary
@@ -138,7 +154,7 @@ ApplicationWindow {
                         id: notesText
                         anchors.fill: parent
                         anchors.margins: 12
-                        text: updateViewModel.updateNotes
+                        text: window.updateVm.updateNotes
                         wrapMode: Text.WordWrap
                         color: ThemeSystem.Theme.textPrimary
                         font.pixelSize: 13
@@ -154,9 +170,9 @@ ApplicationWindow {
 
                     Button {
                         text: "稍后再说"
-                        enabled: !updateViewModel.busy
+                        enabled: !window.updateVm.busy
                         Layout.fillWidth: window.promptCompact
-                        onClicked: updateViewModel.dismissPrompt()
+                        onClicked: window.updateVm.dismissPrompt()
                     }
 
                     Item {
@@ -167,11 +183,11 @@ ApplicationWindow {
                     PrimaryButton {
                         Layout.fillWidth: true
                         Layout.preferredWidth: 220
-                        text: updateViewModel.busy
-                              ? (updateViewModel.updateProgressPercent >= 0 ? "正在更新..." : "正在检查...")
-                              : "立即更新到 v" + updateViewModel.updateVersion
-                        enabled: !updateViewModel.busy
-                        onClicked: updateViewModel.installUpdate()
+                        text: window.updateVm.busy
+                              ? (window.updateVm.updateProgressPercent >= 0 ? "正在更新..." : "正在检查...")
+                              : "立即更新到 v" + window.updateVm.updateVersion
+                        enabled: !window.updateVm.busy
+                        onClicked: window.updateVm.installUpdate()
                     }
                 }
             }
@@ -196,7 +212,8 @@ ApplicationWindow {
     }
 
     Connections {
-        target: appViewModel
+        target: appViewModel || null
+        ignoreUnknownSignals: true
 
         function onToastRequested(level, message) {
             toast.showMessage(level, message)

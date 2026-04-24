@@ -6,8 +6,17 @@ import "../pages"
 Item {
     id: root
 
+    readonly property var appVm: appViewModel || ({
+        currentRoute: "dashboard",
+        currentRouteIndex: 0,
+        userDisplayName: "",
+        connectionState: "disconnected",
+        navigate: function() {},
+        logout: function() {}
+    })
+
     readonly property real currentHeaderRevealProgress: {
-        switch (appViewModel.currentRoute) {
+        switch (root.appVm.currentRoute) {
         case "dashboard":
             return dashboardPage.headerRevealProgress
         case "downloads":
@@ -65,8 +74,8 @@ Item {
             AppSidebar {
                 Layout.preferredWidth: 252
                 Layout.fillHeight: true
-                currentRoute: appViewModel.currentRoute
-                onRouteSelected: (route) => appViewModel.navigate(route)
+                currentRoute: root.appVm.currentRoute
+                onRouteSelected: (route) => root.appVm.navigate(route)
             }
 
         ColumnLayout {
@@ -78,37 +87,37 @@ Item {
                 id: appHeader
                 Layout.fillWidth: true
                 revealProgress: root.currentHeaderRevealProgress
-                currentPageText: appViewModel.currentRoute === "dashboard"
+                currentPageText: root.appVm.currentRoute === "dashboard"
                                  ? ""
-                                 : appViewModel.currentRoute === "downloads"
+                                 : root.appVm.currentRoute === "downloads"
                                    ? "\u4efb\u52a1\u4e2d\u5fc3"
-                                   : appViewModel.currentRoute === "drive"
+                                   : root.appVm.currentRoute === "drive"
                                      ? "\u7f51\u76d8\u7ba1\u7406"
                                      : "\u7cfb\u7edf\u8bbe\u7f6e"
-                title: appViewModel.currentRoute === "dashboard"
+                title: root.appVm.currentRoute === "dashboard"
                        ? "\u4eea\u8868\u677f"
-                       : appViewModel.currentRoute === "downloads"
+                       : root.appVm.currentRoute === "downloads"
                          ? "\u4efb\u52a1\u4e2d\u5fc3"
-                         : appViewModel.currentRoute === "drive"
+                         : root.appVm.currentRoute === "drive"
                            ? "\u6211\u7684\u7f51\u76d8"
                            : "\u7cfb\u7edf\u8bbe\u7f6e"
-                subtitle: appViewModel.currentRoute === "dashboard"
+                subtitle: root.appVm.currentRoute === "dashboard"
                           ? "\u8fd0\u884c\u6982\u89c8"
-                          : appViewModel.currentRoute === "downloads"
+                          : root.appVm.currentRoute === "downloads"
                             ? "\u4efb\u52a1\u4e0e\u8fdb\u5ea6"
-                            : appViewModel.currentRoute === "drive"
+                            : root.appVm.currentRoute === "drive"
                               ? "\u6587\u4ef6\u4e0e\u5b58\u50a8"
                               : "\u504f\u597d\u4e0e\u8fde\u63a5"
-                userName: appViewModel.userDisplayName
-                connectionState: appViewModel.connectionState
-                onHomeRequested: appViewModel.navigate("dashboard")
-                onLogoutRequested: appViewModel.logout()
+                userName: root.appVm.userDisplayName
+                connectionState: root.appVm.connectionState
+                onHomeRequested: root.appVm.navigate("dashboard")
+                onLogoutRequested: root.appVm.logout()
             }
 
             StackLayout {
                 Layout.fillWidth: true
                 Layout.fillHeight: true
-                currentIndex: appViewModel.currentRouteIndex
+                currentIndex: root.appVm.currentRouteIndex
                 opacity: 1
 
                 Behavior on opacity {

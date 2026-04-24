@@ -11,6 +11,10 @@ from ..task_runner import TaskRunner
 from .base import BaseViewModel
 
 
+DEFAULT_TASK_PAGE_SIZE = 10
+TASK_PAGE_SIZE_CHOICES = {10, 30, 60, 100}
+
+
 class DownloadsViewModel(BaseViewModel):
     summaryCardsChanged = Signal()
     currentTabChanged = Signal()
@@ -30,6 +34,7 @@ class DownloadsViewModel(BaseViewModel):
     unifiedStatusFilterChanged = Signal()
     unifiedFilterSummaryChanged = Signal()
     taskSectionChanged = Signal()
+    paginationChanged = Signal()
 
     def __init__(self, *, api_client, local_runtime_service, task_runner: TaskRunner) -> None:
         super().__init__()
@@ -55,6 +60,11 @@ class DownloadsViewModel(BaseViewModel):
         self._unified_status_filter = "all"
         self._unified_filter_summary = ""
         self._task_section = "server"
+        self._current_page = 1
+        self._page_size = DEFAULT_TASK_PAGE_SIZE
+        self._total_pages = 1
+        self._total_visible_items = 0
+        self._page_summary = "当前没有匹配的任务"
         self._limit = 100
         self._refresh_scheduled = False
 
@@ -133,6 +143,24 @@ class DownloadsViewModel(BaseViewModel):
     def get_task_section(self) -> str:
         return self._task_section
 
+    def get_current_page(self) -> int:
+        return self._current_page
+
+    def get_page_size(self) -> int:
+        return self._page_size
+
+    def get_total_pages(self) -> int:
+        return self._total_pages
+
+    def get_page_summary(self) -> str:
+        return self._page_summary
+
+    def get_can_previous_page(self) -> bool:
+        return self._current_page > 1
+
+    def get_can_next_page(self) -> bool:
+        return self._current_page < self._total_pages
+
     def get_active_downloads_model(self) -> QObject:
         return self._active_downloads_model
 
@@ -206,6 +234,7 @@ class DownloadsViewModel(BaseViewModel):
         self.taskKeywordChanged.emit()
         self.queueKeywordChanged.emit()
         self.localKeywordChanged.emit()
+        self._reset_to_first_page()
         self._rebuild_models()
 
     @Slot(str)
@@ -221,6 +250,7 @@ class DownloadsViewModel(BaseViewModel):
         self.taskStatusFilterChanged.emit()
         self.localStatusFilterChanged.emit()
         self.queueTypeFilterChanged.emit()
+        self._reset_to_first_page()
         self._rebuild_models()
 
     @Slot(str)
@@ -232,6 +262,37 @@ class DownloadsViewModel(BaseViewModel):
             return
         self._task_section = normalized
         self.taskSectionChanged.emit()
+        self._reset_to_first_page()
+        self._rebuild_models()
+
+    @Slot(int)
+    def goToPage(self, value: int) -> None:
+        if self._total_pages <= 0:
+            self._total_pages = 1
+        next_page = max(1, min(int(value or 1), self._total_pages))
+        if next_page == self._current_page:
+            return
+        self._set_current_page(next_page)
+        self._rebuild_models()
+
+    @Slot()
+    def previousPage(self) -> None:
+        self.goToPage(self._current_page - 1)
+
+    @Slot()
+    def nextPage(self) -> None:
+        self.goToPage(self._current_page + 1)
+
+    @Slot(int)
+    def setPageSize(self, value: int) -> None:
+        candidate = int(value or 0)
+        if candidate not in TASK_PAGE_SIZE_CHOICES:
+            candidate = DEFAULT_TASK_PAGE_SIZE
+        if candidate == self._page_size:
+            return
+        self._page_size = candidate
+        self.paginationChanged.emit()
+        self._reset_to_first_page()
         self._rebuild_models()
 
     @Slot()
@@ -244,7 +305,7 @@ class DownloadsViewModel(BaseViewModel):
 
     def _load_snapshot(self) -> dict[str, Any]:
         return {
-            "downloads": self._api_client.get_downloads(limit=self._limit, grouped=True),
+            "downloads": self._api_client.get_downloads(limit=self._limit, grouped=False),
             "uploads": self._api_client.get_uploads(limit=self._limit),
             "queue": self._api_client.get_queue_status(),
             "download_stats": self._api_client.get_download_statistics(),
@@ -295,13 +356,8 @@ class DownloadsViewModel(BaseViewModel):
         self._summary_cards = []
         self.summaryCardsChanged.emit()
 
-        active_downloads = [
-            self._normalize_active_download(group, record)
-            for group in self._download_groups
-            for record in group.get("downloads") or []
-        ]
+        active_downloads = self._normalize_download_records(self._download_groups)
         active_uploads = [self._normalize_upload_record(record) for record in self._upload_records]
-        group_records = [self._normalize_group_record(group) for group in self._download_groups]
 
         current_processing = self._queue_snapshot.get("current_processing")
         queue_current = []
@@ -332,22 +388,20 @@ class DownloadsViewModel(BaseViewModel):
 
         filtered_downloads = [item for item in active_downloads if self._matches_task_item(item)]
         filtered_uploads = [item for item in active_uploads if self._matches_task_item(item)]
-        filtered_groups = [item for item in group_records if self._matches_task_item(item)]
         filtered_queue_current = [item for item in queue_current if self._matches_queue_item(item)]
         filtered_queue_waiting = [item for item in queue_waiting if self._matches_queue_item(item)]
         filtered_local = [item for item in local_items if self._matches_local_item(item)]
 
         self._active_downloads_model.set_items(filtered_downloads)
         self._active_uploads_model.set_items(filtered_uploads)
-        self._group_records_model.set_items(filtered_groups)
+        self._group_records_model.set_items([])
         self._queue_current_model.set_items(filtered_queue_current)
         self._queue_waiting_model.set_items(filtered_queue_waiting)
         self._local_downloads_model.set_items(filtered_local)
 
         self._task_filter_summary = (
             f"下载 {len(filtered_downloads)}/{len(active_downloads)} · "
-            f"上传 {len(filtered_uploads)}/{len(active_uploads)} · "
-            f"记录组 {len(filtered_groups)}/{len(group_records)}"
+            f"上传 {len(filtered_uploads)}/{len(active_uploads)}"
         )
         self.taskFilterSummaryChanged.emit()
 
@@ -363,7 +417,6 @@ class DownloadsViewModel(BaseViewModel):
         unified_items = [
             *active_downloads,
             *active_uploads,
-            *group_records,
             *queue_current,
             *queue_waiting,
             *local_items,
@@ -375,14 +428,13 @@ class DownloadsViewModel(BaseViewModel):
         visible_items = self._items_for_section(
             active_downloads=active_downloads,
             active_uploads=active_uploads,
-            group_records=group_records,
             queue_current=queue_current,
             queue_waiting=queue_waiting,
             local_items=local_items,
         )
         visible_items = [item for item in visible_items if self._matches_unified_item(item)]
         visible_items.sort(key=self._unified_sort_key)
-        self._visible_task_flow_model.set_items(visible_items)
+        self._set_visible_task_items(visible_items)
 
         counts = {
             "active": sum(1 for item in unified_items if item.get("statusBucket") == "active"),
@@ -401,6 +453,16 @@ class DownloadsViewModel(BaseViewModel):
             parts.append(f"已完成 {counts['completed']}")
         self._unified_filter_summary = " · ".join(parts) if parts else "当前没有匹配的任务"
         self.unifiedFilterSummaryChanged.emit()
+
+    def _normalize_download_records(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+        normalized: list[dict[str, Any]] = []
+        for record in records:
+            children = record.get("downloads")
+            if isinstance(children, list):
+                normalized.extend(self._normalize_active_download(record, child) for child in children)
+                continue
+            normalized.append(self._normalize_active_download({}, record))
+        return normalized
 
     def _normalize_active_download(self, group: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
         progress = format_progress(record.get("completed_length"), record.get("total_length") or record.get("file_size"))
@@ -640,7 +702,6 @@ class DownloadsViewModel(BaseViewModel):
         *,
         active_downloads: list[dict[str, Any]],
         active_uploads: list[dict[str, Any]],
-        group_records: list[dict[str, Any]],
         queue_current: list[dict[str, Any]],
         queue_waiting: list[dict[str, Any]],
         local_items: list[dict[str, Any]],
@@ -649,7 +710,40 @@ class DownloadsViewModel(BaseViewModel):
             return [*queue_current, *queue_waiting]
         if self._task_section == "local":
             return list(local_items)
-        return [*active_downloads, *active_uploads, *group_records]
+        return [*active_downloads, *active_uploads]
+
+    def _set_visible_task_items(self, items: list[dict[str, Any]]) -> None:
+        total_items = len(items)
+        total_pages = max(1, (total_items + self._page_size - 1) // self._page_size)
+        current_page = min(max(1, self._current_page), total_pages)
+        start_index = (current_page - 1) * self._page_size
+        end_index = min(start_index + self._page_size, total_items)
+
+        changed = (
+            self._current_page != current_page
+            or self._total_pages != total_pages
+            or self._total_visible_items != total_items
+        )
+        self._current_page = current_page
+        self._total_pages = total_pages
+        self._total_visible_items = total_items
+        self._page_summary = (
+            f"当前没有匹配的任务"
+            if total_items == 0
+            else f"显示 {start_index + 1}-{end_index} / {total_items} 条"
+        )
+        self._visible_task_flow_model.set_items(items[start_index:end_index])
+        if changed:
+            self.paginationChanged.emit()
+
+    def _set_current_page(self, value: int) -> None:
+        self._current_page = max(1, int(value or 1))
+        self.paginationChanged.emit()
+
+    def _reset_to_first_page(self) -> None:
+        if self._current_page == 1:
+            return
+        self._set_current_page(1)
 
     def _download_size_text(self, record: dict[str, Any]) -> str:
         total = record.get("total_length") or record.get("file_size")
@@ -1189,6 +1283,12 @@ class DownloadsViewModel(BaseViewModel):
     unifiedStatusFilter = Property(str, get_unified_status_filter, notify=unifiedStatusFilterChanged)
     unifiedFilterSummary = Property(str, get_unified_filter_summary, notify=unifiedFilterSummaryChanged)
     taskSection = Property(str, get_task_section, notify=taskSectionChanged)
+    currentPage = Property(int, get_current_page, notify=paginationChanged)
+    pageSize = Property(int, get_page_size, notify=paginationChanged)
+    totalPages = Property(int, get_total_pages, notify=paginationChanged)
+    pageSummary = Property(str, get_page_summary, notify=paginationChanged)
+    canPreviousPage = Property(bool, get_can_previous_page, notify=paginationChanged)
+    canNextPage = Property(bool, get_can_next_page, notify=paginationChanged)
     activeDownloadsModel = Property(QObject, get_active_downloads_model, constant=True)
     activeUploadsModel = Property(QObject, get_active_uploads_model, constant=True)
     groupRecordsModel = Property(QObject, get_group_records_model, constant=True)

@@ -9,6 +9,68 @@ import "../components"
 ResponsivePage {
     id: root
 
+    readonly property var settingsVm: settingsViewModel || ({
+        serverBaseUrl: "",
+        proxyEnabled: false,
+        proxyUrl: "",
+        downloadDir: "",
+        maxConcurrentDownloads: 1,
+        threadsPerDownload: 1,
+        errorMessage: "",
+        serverStatusMessage: "",
+        serverCategories: [],
+        serverFieldsModel: null,
+        rcloneConfigPath: "",
+        rcloneConfigText: "",
+        rcloneRemotes: [],
+        dockerLogLines: 200,
+        dockerLogs: "",
+        logFilesModel: null,
+        logKeyword: "",
+        logTailCount: 200,
+        appLogSummary: "",
+        appLogText: "",
+        bootstrap: function() {},
+        setServerBaseUrl: function() {},
+        setProxyEnabled: function() {},
+        setProxyUrl: function() {},
+        setDownloadDir: function() {},
+        pickDownloadDir: function() {},
+        setMaxConcurrentDownloads: function() {},
+        setThreadsPerDownload: function() {},
+        save: function() {},
+        loadServerCategory: function() {},
+        reloadServerConfig: function() {},
+        saveServerCategory: function() {},
+        setServerField: function() {},
+        setRcloneConfigText: function() {},
+        saveRcloneConfigFile: function() {},
+        loadRcloneConfigFile: function() {},
+        restartDocker: function() {},
+        setDockerLogLines: function() {},
+        loadDockerLogs: function() {},
+        clearDockerLogs: function() {},
+        setSelectedLogFile: function() {},
+        setLogLevel: function() {},
+        setLogKeyword: function() {},
+        setLogTailCount: function() {},
+        loadAppLogs: function() {},
+        downloadSelectedLogFile: function() {},
+        clearAppLogDisplay: function() {}
+    })
+    readonly property var updateVm: updateViewModel || ({
+        updateState: "",
+        updateProgressPercent: -1,
+        updateNotes: "",
+        busy: false,
+        canInstallUpdate: false,
+        updateVersion: "",
+        manualUrl: "",
+        checkForUpdates: function() {},
+        installUpdate: function() {},
+        openManualUpdateUrl: function() {}
+    })
+
     horizontalPadding: 26
     verticalPadding: 24
     sectionSpacing: 24
@@ -63,11 +125,11 @@ ResponsivePage {
         return Math.max(0, Math.min(1, Number(percent || 0) / 100))
     }
 
-    Component.onCompleted: settingsViewModel.bootstrap()
+    Component.onCompleted: root.settingsVm.bootstrap()
     onServerCategoryChanged: {
-        settingsViewModel.loadServerCategory(serverCategory)
+        root.settingsVm.loadServerCategory(serverCategory)
         if (serverCategory === "rclone") {
-            settingsViewModel.loadRcloneConfigFile()
+            root.settingsVm.loadRcloneConfigFile()
         }
     }
 
@@ -437,7 +499,7 @@ ResponsivePage {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "系统管理区现在拆分为资源概览、Docker 状态和日志面板，减少宽屏留白与中等宽度下的挤压感。"
+                        text: "系统管理区现在保留 Docker 日志、系统日志和容器重启入口，操作更聚焦。"
                         color: ThemeSystem.Theme.textPrimary
                         font.pixelSize: 14
                         font.bold: true
@@ -491,10 +553,10 @@ ResponsivePage {
 
     FluentBanner {
         Layout.fillWidth: true
-        visible: settingsViewModel.errorMessage.length > 0
+        visible: root.settingsVm.errorMessage.length > 0
         tone: "danger"
         title: "发生错误"
-        description: settingsViewModel.errorMessage
+        description: root.settingsVm.errorMessage
     }
 
     Item {
@@ -597,9 +659,9 @@ ResponsivePage {
 
                 AppTextField {
                     Layout.fillWidth: true
-                    text: settingsViewModel.serverBaseUrl
+                    text: root.settingsVm.serverBaseUrl
                     placeholderText: "https://mistrelay.example.com"
-                    onTextEdited: settingsViewModel.setServerBaseUrl(text)
+                    onTextEdited: root.settingsVm.setServerBaseUrl(text)
                 }
             }
 
@@ -615,8 +677,8 @@ ResponsivePage {
                     id: currentServerText
                     anchors.fill: parent
                     anchors.margins: 10
-                    text: settingsViewModel.serverBaseUrl.length > 0
-                          ? "当前地址：" + settingsViewModel.serverBaseUrl
+                    text: root.settingsVm.serverBaseUrl.length > 0
+                          ? "当前地址：" + root.settingsVm.serverBaseUrl
                           : "尚未配置服务端地址。"
                     wrapMode: Text.WordWrap
                     color: ThemeSystem.Theme.textSecondary
@@ -630,7 +692,7 @@ ResponsivePage {
 
                 PrimaryButton {
                     text: "保存连接配置"
-                    onClicked: settingsViewModel.save()
+                    onClicked: root.settingsVm.save()
                 }
             }
         }
@@ -672,7 +734,7 @@ ResponsivePage {
 
                     Text {
                         Layout.fillWidth: true
-                        text: updateViewModel.updateState
+                        text: root.updateVm.updateState
                         color: ThemeSystem.Theme.textPrimary
                         wrapMode: Text.WordWrap
                         font.family: ThemeSystem.Theme.fontFamily
@@ -681,17 +743,17 @@ ResponsivePage {
             }
 
             ProgressBar {
-                visible: updateViewModel.updateProgressPercent >= 0
+                visible: root.updateVm.updateProgressPercent >= 0
                 Layout.fillWidth: true
                 from: 0
                 to: 100
-                value: updateViewModel.updateProgressPercent
+                value: root.updateVm.updateProgressPercent
             }
 
             Text {
-                visible: updateViewModel.updateNotes.length > 0
+                visible: root.updateVm.updateNotes.length > 0
                 Layout.fillWidth: true
-                text: updateViewModel.updateNotes
+                text: root.updateVm.updateNotes
                 wrapMode: Text.WordWrap
                 color: ThemeSystem.Theme.textSecondary
                 font.family: ThemeSystem.Theme.fontFamily
@@ -702,23 +764,23 @@ ResponsivePage {
                 spacing: 12
 
                 PrimaryButton {
-                    text: updateViewModel.busy ? "检查中..." : "检查更新"
-                    enabled: !updateViewModel.busy
-                    onClicked: updateViewModel.checkForUpdates()
+                    text: root.updateVm.busy ? "检查中..." : "检查更新"
+                    enabled: !root.updateVm.busy
+                    onClicked: root.updateVm.checkForUpdates()
                 }
 
                 PrimaryButton {
-                    visible: updateViewModel.canInstallUpdate
-                    text: "更新到 v" + updateViewModel.updateVersion
-                    enabled: !updateViewModel.busy
-                    onClicked: updateViewModel.installUpdate()
+                    visible: root.updateVm.canInstallUpdate
+                    text: "更新到 v" + root.updateVm.updateVersion
+                    enabled: !root.updateVm.busy
+                    onClicked: root.updateVm.installUpdate()
                 }
 
                 SecondaryButton {
-                    visible: updateViewModel.manualUrl.length > 0 && !updateViewModel.canInstallUpdate
+                    visible: root.updateVm.manualUrl.length > 0 && !root.updateVm.canInstallUpdate
                     text: "手动下载安装"
                     tone: "primary"
-                    onClicked: updateViewModel.openManualUpdateUrl()
+                    onClicked: root.updateVm.openManualUpdateUrl()
                 }
             }
         }
@@ -752,8 +814,8 @@ ResponsivePage {
                     spacing: 12
 
                     Switch {
-                        checked: settingsViewModel.proxyEnabled
-                        onToggled: settingsViewModel.setProxyEnabled(checked)
+                        checked: root.settingsVm.proxyEnabled
+                        onToggled: root.settingsVm.setProxyEnabled(checked)
                     }
 
                     ColumnLayout {
@@ -769,7 +831,7 @@ ResponsivePage {
 
                         Text {
                             Layout.fillWidth: true
-                            text: settingsViewModel.proxyEnabled
+                            text: root.settingsVm.proxyEnabled
                                   ? "代理已启用，下面的地址会用于客户端所有网络请求。"
                                   : "关闭后客户端将直接连接服务端。"
                             color: ThemeSystem.Theme.textSecondary
@@ -786,10 +848,10 @@ ResponsivePage {
 
                 AppTextField {
                     Layout.fillWidth: true
-                    text: settingsViewModel.proxyUrl
-                    enabled: settingsViewModel.proxyEnabled
+                    text: root.settingsVm.proxyUrl
+                    enabled: root.settingsVm.proxyEnabled
                     placeholderText: "http://127.0.0.1:7890 或 socks5://127.0.0.1:1080"
-                    onTextEdited: settingsViewModel.setProxyUrl(text)
+                    onTextEdited: root.settingsVm.setProxyUrl(text)
                 }
             }
 
@@ -799,7 +861,7 @@ ResponsivePage {
 
                 PrimaryButton {
                     text: "保存代理配置"
-                    onClicked: settingsViewModel.save()
+                    onClicked: root.settingsVm.save()
                 }
             }
         }
@@ -830,16 +892,16 @@ ResponsivePage {
 
                     AppTextField {
                         Layout.fillWidth: true
-                        text: settingsViewModel.downloadDir
+                        text: root.settingsVm.downloadDir
                         placeholderText: "默认下载目录"
-                        onTextEdited: settingsViewModel.setDownloadDir(text)
+                        onTextEdited: root.settingsVm.setDownloadDir(text)
                     }
 
                     SecondaryButton {
                         text: "选择目录"
                         Layout.fillWidth: root.compact
                         tone: "primary"
-                        onClicked: settingsViewModel.pickDownloadDir()
+                        onClicked: root.settingsVm.pickDownloadDir()
                     }
                 }
             }
@@ -857,8 +919,8 @@ ResponsivePage {
                     SpinBox {
                         from: 1
                         to: 16
-                        value: settingsViewModel.maxConcurrentDownloads
-                        onValueModified: settingsViewModel.setMaxConcurrentDownloads(value)
+                        value: root.settingsVm.maxConcurrentDownloads
+                        onValueModified: root.settingsVm.setMaxConcurrentDownloads(value)
                     }
                 }
 
@@ -869,8 +931,8 @@ ResponsivePage {
                     SpinBox {
                         from: 1
                         to: 32
-                        value: settingsViewModel.threadsPerDownload
-                        onValueModified: settingsViewModel.setThreadsPerDownload(value)
+                        value: root.settingsVm.threadsPerDownload
+                        onValueModified: root.settingsVm.setThreadsPerDownload(value)
                     }
                 }
             }
@@ -881,7 +943,7 @@ ResponsivePage {
 
                 PrimaryButton {
                     text: "保存下载配置"
-                    onClicked: settingsViewModel.save()
+                    onClicked: root.settingsVm.save()
                 }
             }
         }
@@ -912,7 +974,7 @@ ResponsivePage {
 
                     Text {
                         Layout.fillWidth: true
-                        text: settingsViewModel.serverStatusMessage
+                        text: root.settingsVm.serverStatusMessage
                         wrapMode: Text.WordWrap
                         color: ThemeSystem.Theme.textSecondary
                         font.family: ThemeSystem.Theme.fontFamily
@@ -923,7 +985,7 @@ ResponsivePage {
                         spacing: 10
 
                         Repeater {
-                            model: settingsViewModel.serverCategories
+                            model: root.settingsVm.serverCategories
 
                             delegate: FilterButton {
                                 required property var modelData
@@ -941,19 +1003,19 @@ ResponsivePage {
 
                         PrimaryButton {
                             text: "保存当前分类"
-                            onClicked: settingsViewModel.saveServerCategory(root.serverCategory)
+                            onClicked: root.settingsVm.saveServerCategory(root.serverCategory)
                         }
 
                         SecondaryButton {
                             text: "重新读取"
                             tone: "primary"
-                            onClicked: settingsViewModel.loadServerCategory(root.serverCategory)
+                            onClicked: root.settingsVm.loadServerCategory(root.serverCategory)
                         }
 
                         SecondaryButton {
                             text: "从 config.yml 重新导入"
                             tone: "primary"
-                            onClicked: settingsViewModel.reloadServerConfig(root.serverCategory)
+                            onClicked: root.settingsVm.reloadServerConfig(root.serverCategory)
                         }
                     }
                 }
@@ -976,7 +1038,7 @@ ResponsivePage {
                     }
 
                     Repeater {
-                        model: settingsViewModel.serverFieldsModel
+                        model: root.settingsVm.serverFieldsModel || []
 
                         delegate: ColumnLayout {
                             required property string key
@@ -1033,7 +1095,7 @@ ResponsivePage {
 
                     Text {
                         Layout.fillWidth: true
-                        text: "路径：" + settingsViewModel.rcloneConfigPath
+                        text: "路径：" + root.settingsVm.rcloneConfigPath
                         wrapMode: Text.WordWrap
                         color: ThemeSystem.Theme.textSecondary
                         font.family: ThemeSystem.Theme.fontFamily
@@ -1042,10 +1104,10 @@ ResponsivePage {
                     TextArea {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 260
-                        text: settingsViewModel.rcloneConfigText
+                        text: root.settingsVm.rcloneConfigText
                         wrapMode: TextArea.NoWrap
                         font.family: "Consolas"
-                        onTextChanged: if (activeFocus) settingsViewModel.setRcloneConfigText(text)
+                        onTextChanged: if (activeFocus) root.settingsVm.setRcloneConfigText(text)
 
                         background: Rectangle {
                             radius: ThemeSystem.Theme.radiusMedium
@@ -1059,9 +1121,9 @@ ResponsivePage {
                     }
 
                     Text {
-                        visible: settingsViewModel.rcloneRemotes.length > 0
+                        visible: root.settingsVm.rcloneRemotes.length > 0
                         Layout.fillWidth: true
-                        text: "已发现 Remotes：" + settingsViewModel.rcloneRemotes.map(function(item) {
+                        text: "已发现 Remotes：" + root.settingsVm.rcloneRemotes.map(function(item) {
                                   return item.name || item.remote || ""
                               }).filter(function(item) {
                                   return item.length > 0
@@ -1077,13 +1139,13 @@ ResponsivePage {
 
                         PrimaryButton {
                             text: "保存 Rclone 配置"
-                            onClicked: settingsViewModel.saveRcloneConfigFile()
+                            onClicked: root.settingsVm.saveRcloneConfigFile()
                         }
 
                         SecondaryButton {
                             text: "重新读取"
                             tone: "primary"
-                            onClicked: settingsViewModel.loadRcloneConfigFile()
+                            onClicked: root.settingsVm.loadRcloneConfigFile()
                         }
                     }
                 }
@@ -1111,7 +1173,7 @@ ResponsivePage {
                     SectionIntro {
                         eyebrow: "MANAGEMENT"
                         title: "系统管理"
-                        description: "集中查看资源占用、Docker 运行状态与系统日志，页面会根据窗口宽度自动重排。"
+                        description: "集中查看 Docker 日志与系统日志，并提供容器重启操作。"
                     }
 
                     Flow {
@@ -1119,7 +1181,7 @@ ResponsivePage {
                         spacing: 10
 
                         FilterButton {
-                            text: "Docker / 资源"
+                            text: "Docker 日志"
                             activeState: root.managementTab === "docker"
                             onClicked: root.managementTab = "docker"
                         }
@@ -1130,10 +1192,9 @@ ResponsivePage {
                             onClicked: root.managementTab = "app-logs"
                         }
 
-                        SecondaryButton {
-                            text: "刷新快照"
-                            tone: "primary"
-                            onClicked: settingsViewModel.loadManagementSnapshot()
+                        PrimaryButton {
+                            text: "重启容器"
+                            onClicked: root.settingsVm.restartDocker()
                         }
                     }
                 }
@@ -1154,133 +1215,6 @@ ResponsivePage {
         ColumnLayout {
             width: root.contentFrameWidth
             spacing: root.sectionSpacing
-
-            GlassCard {
-                Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: resourceOverviewContent.implicitHeight + padding * 2
-
-                ColumnLayout {
-                    id: resourceOverviewContent
-                    anchors.fill: parent
-                    spacing: 18
-
-                    SectionIntro {
-                        eyebrow: "RESOURCES"
-                        title: "资源概览"
-                        description: "CPU、内存与磁盘占用会按照窗口宽度自动重排，宽屏下始终保持三张卡片完整对齐。"
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: root.managementMetricColumns
-                        columnSpacing: 18
-                        rowSpacing: 18
-
-                        Repeater {
-                            model: settingsViewModel.resourceCards
-
-                            delegate: ManagementMetricCard {
-                                required property var modelData
-
-                                title: modelData.title
-                                value: modelData.value
-                                caption: modelData.caption
-                                tone: modelData.tone
-                                percent: Number(modelData.percent || 0)
-                            }
-                        }
-                    }
-
-                    Text {
-                        visible: settingsViewModel.resourceCards.length === 0
-                        Layout.fillWidth: true
-                        text: "暂未获取到资源快照，点击“刷新快照”后会显示最新数据。"
-                        color: ThemeSystem.Theme.textTertiary
-                        wrapMode: Text.WordWrap
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-                }
-            }
-
-            GlassCard {
-                Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: dockerStatusContent.implicitHeight + padding * 2
-
-                ColumnLayout {
-                    id: dockerStatusContent
-                    anchors.fill: parent
-                    spacing: 16
-
-                    SectionIntro {
-                        eyebrow: "DOCKER"
-                        title: "Docker 状态"
-                        description: "查看当前运行环境、容器信息与镜像状态，长文本会自动换行显示。"
-                    }
-
-                    ColumnLayout {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Repeater {
-                            model: [
-                                {
-                                    label: "运行环境",
-                                    value: settingsViewModel.dockerStatus.in_docker ? "Docker 容器内" : "宿主机 / 非 Docker"
-                                },
-                                {
-                                    label: "容器名称",
-                                    value: root.displayText(settingsViewModel.dockerStatus.container_name)
-                                },
-                                {
-                                    label: "运行状态",
-                                    value: root.displayText(settingsViewModel.dockerStatus.status)
-                                },
-                                {
-                                    label: "镜像",
-                                    value: root.displayText(settingsViewModel.dockerStatus.image)
-                                },
-                                {
-                                    label: "创建时间",
-                                    value: root.displayText(settingsViewModel.dockerStatus.created)
-                                }
-                            ]
-
-                            delegate: KeyValueRow {
-                                required property var modelData
-
-                                label: modelData.label
-                                value: modelData.value
-                            }
-                        }
-                    }
-
-                    FluentBanner {
-                        Layout.fillWidth: true
-                        visible: (settingsViewModel.dockerStatus.error || "").length > 0
-                        tone: "danger"
-                        title: "Docker 状态异常"
-                        description: settingsViewModel.dockerStatus.error || ""
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 12
-
-                        PrimaryButton {
-                            text: "重启容器"
-                            onClicked: settingsViewModel.restartDocker()
-                        }
-
-                        SecondaryButton {
-                            text: "刷新状态"
-                            tone: "primary"
-                            onClicked: settingsViewModel.loadDockerStatus()
-                        }
-                    }
-                }
-            }
 
             GlassCard {
                 Layout.fillWidth: true
@@ -1311,8 +1245,8 @@ ResponsivePage {
                             SpinBox {
                                 from: 20
                                 to: 500
-                                value: settingsViewModel.dockerLogLines
-                                onValueModified: settingsViewModel.setDockerLogLines(value)
+                                value: root.settingsVm.dockerLogLines
+                                onValueModified: root.settingsVm.setDockerLogLines(value)
                             }
                         }
                     }
@@ -1320,11 +1254,11 @@ ResponsivePage {
                     ConsoleArea {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 360
-                        text: settingsViewModel.dockerLogs
+                        text: root.settingsVm.dockerLogs
                     }
 
                     Text {
-                        visible: settingsViewModel.dockerLogs.length === 0
+                        visible: root.settingsVm.dockerLogs.length === 0
                         Layout.fillWidth: true
                         text: "暂无日志内容，点击“刷新日志”获取最近输出。"
                         color: ThemeSystem.Theme.textTertiary
@@ -1339,13 +1273,13 @@ ResponsivePage {
                         SecondaryButton {
                             text: "刷新日志"
                             tone: "primary"
-                            onClicked: settingsViewModel.loadDockerLogs()
+                            onClicked: root.settingsVm.loadDockerLogs()
                         }
 
                         SecondaryButton {
                             text: "清空显示"
                             tone: "warning"
-                            onClicked: settingsViewModel.clearDockerLogs()
+                            onClicked: root.settingsVm.clearDockerLogs()
                         }
                     }
                 }
@@ -1387,12 +1321,12 @@ ResponsivePage {
 
                             ComboBox {
                                 Layout.fillWidth: true
-                                model: settingsViewModel.logFilesModel
+                                model: root.settingsVm.logFilesModel || []
                                 textRole: "name"
                                 onActivated: function(index) {
-                                    var item = settingsViewModel.logFilesModel.get(index)
-                                    settingsViewModel.setSelectedLogFile(item.name || "")
-                                    settingsViewModel.loadAppLogs()
+                                    var item = root.settingsVm.logFilesModel.get(index)
+                                    root.settingsVm.setSelectedLogFile(item.name || "")
+                                    root.settingsVm.loadAppLogs()
                                 }
                             }
                         }
@@ -1404,8 +1338,8 @@ ResponsivePage {
                                 Layout.fillWidth: true
                                 model: ["", "ERROR", "WARNING", "INFO", "DEBUG"]
                                 onActivated: function(index) {
-                                    settingsViewModel.setLogLevel(model[index])
-                                    settingsViewModel.loadAppLogs()
+                                    root.settingsVm.setLogLevel(model[index])
+                                    root.settingsVm.loadAppLogs()
                                 }
                             }
                         }
@@ -1415,10 +1349,10 @@ ResponsivePage {
 
                             AppTextField {
                                 Layout.fillWidth: true
-                                text: settingsViewModel.logKeyword
+                                text: root.settingsVm.logKeyword
                                 placeholderText: "输入关键词后回车搜索"
-                                onTextEdited: settingsViewModel.setLogKeyword(text)
-                                onAccepted: settingsViewModel.loadAppLogs()
+                                onTextEdited: root.settingsVm.setLogKeyword(text)
+                                onAccepted: root.settingsVm.loadAppLogs()
                             }
                         }
 
@@ -1429,8 +1363,8 @@ ResponsivePage {
                                 from: 50
                                 to: 1000
                                 stepSize: 50
-                                value: settingsViewModel.logTailCount
-                                onValueModified: settingsViewModel.setLogTailCount(value)
+                                value: root.settingsVm.logTailCount
+                                onValueModified: root.settingsVm.setLogTailCount(value)
                             }
                         }
                     }
@@ -1441,19 +1375,19 @@ ResponsivePage {
 
                         PrimaryButton {
                             text: "刷新日志"
-                            onClicked: settingsViewModel.loadAppLogs()
+                            onClicked: root.settingsVm.loadAppLogs()
                         }
 
                         SecondaryButton {
                             text: "下载当前日志"
                             tone: "primary"
-                            onClicked: settingsViewModel.downloadSelectedLogFile()
+                            onClicked: root.settingsVm.downloadSelectedLogFile()
                         }
 
                         SecondaryButton {
                             text: "清空显示"
                             tone: "warning"
-                            onClicked: settingsViewModel.clearAppLogDisplay()
+                            onClicked: root.settingsVm.clearAppLogDisplay()
                         }
                     }
 
@@ -1469,7 +1403,7 @@ ResponsivePage {
                             id: logSummaryText
                             anchors.fill: parent
                             anchors.margins: 10
-                            text: settingsViewModel.appLogSummary
+                            text: root.settingsVm.appLogSummary
                             color: ThemeSystem.Theme.textSecondary
                             wrapMode: Text.WordWrap
                             font.family: ThemeSystem.Theme.fontFamily
@@ -1479,7 +1413,7 @@ ResponsivePage {
                     ConsoleArea {
                         Layout.fillWidth: true
                         Layout.preferredHeight: 520
-                        text: settingsViewModel.appLogText
+                        text: root.settingsVm.appLogText
                     }
                 }
             }
@@ -1492,7 +1426,7 @@ ResponsivePage {
         AppTextField {
             Layout.fillWidth: true
             text: parent.fieldValue === undefined || parent.fieldValue === null ? "" : String(parent.fieldValue)
-            onTextEdited: settingsViewModel.setServerField(root.serverCategory, parent.fieldKey, text)
+            onTextEdited: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, text)
         }
     }
 
@@ -1503,7 +1437,7 @@ ResponsivePage {
             Layout.fillWidth: true
             text: parent.fieldValue === undefined || parent.fieldValue === null ? "" : String(parent.fieldValue)
             echoMode: TextInput.Password
-            onTextEdited: settingsViewModel.setServerField(root.serverCategory, parent.fieldKey, text)
+            onTextEdited: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, text)
         }
     }
 
@@ -1515,7 +1449,7 @@ ResponsivePage {
             Layout.preferredHeight: 120
             text: parent.fieldValue === undefined || parent.fieldValue === null ? "" : String(parent.fieldValue)
             wrapMode: TextArea.Wrap
-            onTextChanged: if (activeFocus) settingsViewModel.setServerField(root.serverCategory, parent.fieldKey, text)
+            onTextChanged: if (activeFocus) root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, text)
 
             background: Rectangle {
                 radius: ThemeSystem.Theme.radiusMedium
@@ -1536,7 +1470,7 @@ ResponsivePage {
             from: -2147483647
             to: 2147483647
             value: Number(parent.fieldValue || 0)
-            onValueModified: settingsViewModel.setServerField(root.serverCategory, parent.fieldKey, value)
+            onValueModified: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, value)
         }
     }
 
@@ -1548,7 +1482,7 @@ ResponsivePage {
 
             Switch {
                 checked: Boolean(parent.fieldValue)
-                onToggled: settingsViewModel.setServerField(root.serverCategory, parent.fieldKey, checked)
+                onToggled: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, checked)
             }
 
             Text {

@@ -6,6 +6,11 @@ import "../theme" as ThemeSystem
 Rectangle {
     id: root
 
+    readonly property var dashboardVm: dashboardViewModel || ({
+        serverBaseUrl: "",
+        userRole: ""
+    })
+
     signal logoutRequested()
     signal homeRequested()
 
@@ -17,8 +22,8 @@ Rectangle {
     property real revealProgress: 1.0
     readonly property bool showCurrentPage: root.currentPageText.length > 0
     readonly property bool canNavigateHome: root.showCurrentPage
-    readonly property string serverLabel: dashboardViewModel.serverBaseUrl.length > 0
-                                          ? dashboardViewModel.serverBaseUrl.replace("http://", "").replace("https://", "")
+    readonly property string serverLabel: root.dashboardVm.serverBaseUrl.length > 0
+                                          ? root.dashboardVm.serverBaseUrl.replace("http://", "").replace("https://", "")
                                           : "\u672a\u914d\u7f6e\u670d\u52a1\u5668"
     readonly property real clampedRevealProgress: Math.max(0.0, Math.min(1.0, revealProgress))
 
@@ -242,7 +247,7 @@ Rectangle {
                     }
 
                     Text {
-                        text: dashboardViewModel.userRole.length > 0 ? dashboardViewModel.userRole : "\u7cfb\u7edf\u6210\u5458"
+                        text: root.dashboardVm.userRole.length > 0 ? root.dashboardVm.userRole : "\u7cfb\u7edf\u6210\u5458"
                         color: ThemeSystem.Theme.textSecondary
                         font.pixelSize: 10
                         font.family: ThemeSystem.Theme.fontFamily

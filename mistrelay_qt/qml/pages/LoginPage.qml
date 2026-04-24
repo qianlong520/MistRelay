@@ -9,7 +9,18 @@ Item {
 
     anchors.fill: parent
 
-    readonly property var loginVm: loginViewModel
+    readonly property var loginVm: loginViewModel || ({
+        serverBaseUrl: "",
+        username: "",
+        password: "",
+        errorMessage: "",
+        infoMessage: "",
+        busy: false,
+        setServerBaseUrl: function() {},
+        setUsername: function() {},
+        setPassword: function() {},
+        submitLogin: function() {}
+    })
     readonly property real pagePadding: Math.max(24, Math.min(56, width * 0.05))
     readonly property real cardWidth: Math.max(340, Math.min(460, width - pagePadding * 2))
     readonly property bool hasErrorState: root.loginVm.errorMessage.length > 0

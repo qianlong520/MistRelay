@@ -599,10 +599,9 @@ class SettingsViewModel(BaseViewModel):
             on_error=self._set_error_message,
         )
 
+    @Slot()
     def loadManagementSnapshot(self) -> None:
-        self.loadDockerStatus()
         self.loadDockerLogs()
-        self.loadSystemResources()
 
     @Slot()
     def loadDockerStatus(self) -> None:
@@ -626,7 +625,6 @@ class SettingsViewModel(BaseViewModel):
 
     def _handle_restart_docker(self, result: dict[str, Any]) -> None:
         self._show_toast("success", str(result.get("message") or "Docker 重启命令已提交"))
-        self.loadDockerStatus()
         self.loadDockerLogs()
 
     @Slot(int)
