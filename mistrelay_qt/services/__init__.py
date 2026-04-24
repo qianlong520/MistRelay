@@ -1,6 +1,7 @@
 __all__ = [
     "ApiClient",
     "ConfigService",
+    "LocalCacheService",
     "LocalRuntimeService",
     "UpdateService",
     "WebsocketService",
@@ -16,6 +17,10 @@ def __getattr__(name: str):
         from .config_service import ConfigService
 
         return ConfigService
+    if name == "LocalCacheService":
+        from .local_cache_service import LocalCacheService
+
+        return LocalCacheService
     if name == "LocalRuntimeService":
         from .local_runtime_service import LocalRuntimeService
 

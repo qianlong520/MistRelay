@@ -24,6 +24,11 @@ class DownloadConfig:
 
 
 @dataclass(slots=True)
+class CacheConfig:
+    cache_dir: str = ""
+
+
+@dataclass(slots=True)
 class UserInfo:
     id: int | None = None
     username: str = ""
@@ -50,12 +55,14 @@ class AppConfig:
     user: UserInfo = field(default_factory=UserInfo)
     proxy: ProxyConfig = field(default_factory=ProxyConfig)
     download: DownloadConfig = field(default_factory=DownloadConfig)
+    cache: CacheConfig = field(default_factory=CacheConfig)
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any] | None) -> "AppConfig":
         payload = payload or {}
         proxy = payload.get("proxy") or {}
         download = payload.get("download") or {}
+        cache = payload.get("cache") or {}
 
         legacy_download_dir = download.get("downloadDir", "")
         legacy_max_concurrent = download.get("maxConcurrentDownloads")
@@ -90,6 +97,13 @@ class AppConfig:
                     or DEFAULT_THREADS_PER_DOWNLOAD
                 ),
             ),
+            cache=CacheConfig(
+                cache_dir=str(
+                    cache.get("cache_dir")
+                    or cache.get("cacheDir")
+                    or ""
+                ),
+            ),
         )
 
     def to_dict(self) -> dict[str, Any]:
@@ -99,6 +113,7 @@ class AppConfig:
             "user": self.user.to_dict(),
             "proxy": asdict(self.proxy),
             "download": asdict(self.download),
+            "cache": asdict(self.cache),
         }
 
 

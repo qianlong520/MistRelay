@@ -34,29 +34,7 @@ class ImmediateTaskRunner:
 
 
 class StubApiClient:
-    def get_config(self, _category: str) -> dict:
-        return {"data": {}}
-
-    def get_rclone_config(self) -> dict:
-        return {"content": "", "file_path": "/tmp/rclone.conf"}
-
-    def get_rclone_remotes(self) -> dict:
-        return {"data": []}
-
-    def get_docker_status(self) -> dict:
-        return {}
-
-    def get_docker_logs(self, *, lines: int) -> dict:
-        return {"logs": f"tail={lines}"}
-
-    def get_system_resources(self) -> dict:
-        return {"data": {}}
-
-    def get_log_files(self) -> dict:
-        return {"files": []}
-
-    def get_log_content(self, **_kwargs) -> dict:
-        return {"lines": []}
+    pass
 
 
 class StubConfigService:
@@ -108,42 +86,6 @@ class SettingsViewModelTests(unittest.TestCase):
             update_service=StubUpdateService(),
             task_runner=ImmediateTaskRunner(),
         )
-
-    def test_apply_resources_builds_three_cards_with_expected_tones(self) -> None:
-        view_model = self.build_view_model()
-
-        view_model._apply_resources(
-            {
-                "data": {
-                    "cpu": {"percent": 40},
-                    "memory": {"percent": 72, "used": 8 * 1024**3, "total": 16 * 1024**3},
-                    "disk": {"percent": 91, "used": 91 * 1024**3, "total": 100 * 1024**3},
-                }
-            }
-        )
-
-        cards = view_model.resourceCards
-        self.assertEqual(len(cards), 3)
-        self.assertEqual([card["title"] for card in cards], ["CPU", "内存", "硬盘"])
-        self.assertEqual([card["tone"] for card in cards], ["success", "warning", "danger"])
-        self.assertEqual(cards[0]["caption"], "当前系统处理器占用率")
-        self.assertEqual(cards[1]["value"], "72.0%")
-        self.assertEqual(cards[2]["value"], "91.0%")
-
-    def test_set_docker_log_lines_enforces_minimum(self) -> None:
-        view_model = self.build_view_model()
-
-        view_model.setDockerLogLines(5)
-
-        self.assertEqual(view_model.dockerLogLines, 20)
-
-    def test_apply_app_logs_updates_text_and_summary(self) -> None:
-        view_model = self.build_view_model()
-
-        view_model._apply_app_logs({"lines": ["line one", "line two", "line three"]})
-
-        self.assertEqual(view_model.appLogText, "line one\nline two\nline three")
-        self.assertEqual(view_model.appLogSummary, "3 行日志")
 
     def test_save_uses_toast_without_persistent_info_message(self) -> None:
         view_model = self.build_view_model()

@@ -9,14 +9,14 @@ ResponsivePage {
 
     readonly property var downloadsVm: downloadsViewModel || ({
         visibleTaskFlowModel: null,
-        taskSection: "server",
+        taskSection: "local",
         unifiedKeyword: "",
         unifiedStatusFilter: "all",
         queueFloodWaitText: "",
         currentPage: 1,
         pageSize: 10,
         totalPages: 1,
-        pageSummary: "当前没有匹配的任务",
+        pageSummary: "当前没有匹配的本地下载",
         canPreviousPage: false,
         canNextPage: false,
         errorMessage: "",
@@ -28,10 +28,6 @@ ResponsivePage {
         previousPage: function() {},
         nextPage: function() {},
         setPageSize: function() {},
-        retryServerDownload: function() {},
-        deleteServerDownload: function() {},
-        retryUpload: function() {},
-        deleteUpload: function() {},
         cancelLocalDownload: function() {},
         retryLocalDownload: function() {},
         openLocalFile: function() {},
@@ -50,8 +46,6 @@ ResponsivePage {
     }
 
     property var sectionOptions: [
-        { label: "服务端下载", value: "server" },
-        { label: "服务端热队列", value: "queue" },
         { label: "本地下载", value: "local" }
     ]
     property var unifiedFilterOptions: [
@@ -65,18 +59,16 @@ ResponsivePage {
     property var detailFile: ({})
     property string detailGroupTitle: ""
     property var pageSizeOptions: [10, 30, 60, 100]
+    readonly property int taskColumnSpacing: 16
+    readonly property int taskResourceMinWidth: 240
+    readonly property int taskStatusColumnWidth: 110
+    readonly property int taskProgressColumnWidth: 110
+    readonly property int taskSizeColumnWidth: 110
+    readonly property int taskTimeColumnWidth: 150
+    readonly property int taskActionColumnWidth: 180
 
     readonly property bool hasRows: root.downloadsVm.visibleTaskFlowModel && root.downloadsVm.visibleTaskFlowModel.count > 0
-    readonly property string emptyDescription: {
-        switch (root.downloadsVm.taskSection) {
-        case "queue":
-            return "队列为空"
-        case "local":
-            return "暂无本地下载"
-        default:
-            return "暂无服务端任务"
-        }
-    }
+    readonly property string emptyDescription: "暂无本地下载"
 
     function toneColor(tone) {
         switch (tone) {
@@ -114,6 +106,14 @@ ResponsivePage {
         }
         var text = String(value)
         return text.length > 0 ? text : "-"
+    }
+
+    function ellipsizedResourceName(value) {
+        var text = displayValue(value)
+        if (text === "-") {
+            return text
+        }
+        return text.length > 20 ? text.slice(0, 20) + "…" : text
     }
 
     function joinedDisplayValue(values) {
@@ -227,6 +227,7 @@ ResponsivePage {
             required property string metaSecondary
             required property string error
             property string gid: ""
+            property int downloadId: 0
             property int uploadId: 0
             property string transferId: ""
             property string localPath: ""
@@ -246,6 +247,8 @@ ResponsivePage {
                 }
                 return Math.round(Number(value)) + "%"
             }
+
+            readonly property bool hasActions: canRetry || canDelete || canCancel || canOpen || canReveal
 
             Rectangle {
                 anchors.left: parent.left
@@ -269,45 +272,35 @@ ResponsivePage {
                 anchors.rightMargin: 16
                 anchors.topMargin: 9
                 anchors.bottomMargin: 9
-                spacing: 16
+                spacing: root.taskColumnSpacing
 
                 ColumnLayout {
                     Layout.fillWidth: true
-                    Layout.minimumWidth: 220
+                    Layout.minimumWidth: root.taskResourceMinWidth
                     spacing: 4
 
                     RowLayout {
                         Layout.fillWidth: true
-                        spacing: 8
-
-                        Rectangle {
-                            radius: 999
-                            color: "#f4f7fb"
-                            border.width: 1
-                            border.color: "#e5ebf3"
-                            implicitWidth: typeText.implicitWidth + 14
-                            implicitHeight: 24
-
-                            Text {
-                                id: typeText
-                                anchors.centerIn: parent
-                                text: typeLabel
-                                color: ThemeSystem.Theme.textSecondary
-                                font.pixelSize: 11
-                                font.bold: true
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-                        }
+                        spacing: 0
 
                         Text {
                             Layout.fillWidth: true
-                            text: title
+                            text: root.ellipsizedResourceName(title)
                             color: ThemeSystem.Theme.textPrimary
                             font.pixelSize: 13
                             font.bold: true
                             font.family: ThemeSystem.Theme.fontFamily
                             elide: Text.ElideRight
                             maximumLineCount: 1
+                            ToolTip.visible: titleMouse.containsMouse && title.length > text.length
+                            ToolTip.text: title
+
+                            MouseArea {
+                                id: titleMouse
+                                anchors.fill: parent
+                                hoverEnabled: true
+                                acceptedButtons: Qt.NoButton
+                            }
                         }
                     }
 
@@ -336,7 +329,7 @@ ResponsivePage {
                 }
 
                 Rectangle {
-                    Layout.preferredWidth: 110
+                    Layout.preferredWidth: root.taskStatusColumnWidth
                     Layout.preferredHeight: 26
                     radius: 999
                     color: root.toneSoftColor(statusTone)
@@ -355,7 +348,7 @@ ResponsivePage {
                 }
 
                 ColumnLayout {
-                    Layout.preferredWidth: 110
+                    Layout.preferredWidth: root.taskProgressColumnWidth
                     spacing: 5
 
                     Text {
@@ -378,7 +371,7 @@ ResponsivePage {
                 }
 
                 Text {
-                    Layout.preferredWidth: 110
+                    Layout.preferredWidth: root.taskSizeColumnWidth
                     text: root.displayValue(sizeText)
                     color: ThemeSystem.Theme.textPrimary
                     font.pixelSize: 12
@@ -388,7 +381,7 @@ ResponsivePage {
                 }
 
                 Text {
-                    Layout.preferredWidth: 150
+                    Layout.preferredWidth: root.taskTimeColumnWidth
                     text: root.displayValue(metaSecondary)
                     color: ThemeSystem.Theme.textPrimary
                     font.pixelSize: 12
@@ -398,7 +391,7 @@ ResponsivePage {
                 }
 
                 Item {
-                    Layout.preferredWidth: 180
+                    Layout.preferredWidth: root.taskActionColumnWidth
                     Layout.preferredHeight: Math.max(actionsFlow.implicitHeight, 30)
 
                     MouseArea {
@@ -409,6 +402,7 @@ ResponsivePage {
 
                     Flow {
                         id: actionsFlow
+                        visible: rowRoot.hasActions
                         anchors.right: parent.right
                         anchors.verticalCenter: parent.verticalCenter
                         width: parent.width
@@ -416,67 +410,49 @@ ResponsivePage {
                         layoutDirection: Qt.RightToLeft
 
                         GhostPillButton {
-                            visible: rowType === "download" && canDelete
-                            text: "??"
-                            tone: "danger"
-                            onClicked: downloadsViewModel.deleteServerDownload(gid)
-                        }
-
-                        GhostPillButton {
-                            visible: rowType === "download" && canRetry
-                            text: "??"
-                            tone: "primary"
-                            onClicked: downloadsViewModel.retryServerDownload(gid)
-                        }
-
-                        GhostPillButton {
-                            visible: rowType === "upload" && canDelete
-                            text: "??"
-                            tone: "danger"
-                            onClicked: downloadsViewModel.deleteUpload(uploadId)
-                        }
-
-                        GhostPillButton {
-                            visible: rowType === "upload" && canRetry
-                            text: "??"
-                            tone: "primary"
-                            onClicked: downloadsViewModel.retryUpload(uploadId)
-                        }
-
-                        GhostPillButton {
                             visible: rowType === "local" && canDelete
-                            text: "??"
+                            text: "删除"
                             tone: "danger"
                             onClicked: downloadsViewModel.removeLocalDownload(transferId)
                         }
 
                         GhostPillButton {
                             visible: rowType === "local" && canReveal
-                            text: "????"
+                            text: "所在位置"
                             tone: "neutral"
                             onClicked: downloadsViewModel.showLocalFileInFolder(localPath)
                         }
 
                         GhostPillButton {
                             visible: rowType === "local" && canOpen
-                            text: "????"
+                            text: "打开"
                             tone: "primary"
                             onClicked: downloadsViewModel.openLocalFile(localPath)
                         }
 
                         GhostPillButton {
                             visible: rowType === "local" && canRetry
-                            text: "??"
+                            text: "重试"
                             tone: "primary"
                             onClicked: downloadsViewModel.retryLocalDownload(transferId)
                         }
 
                         GhostPillButton {
                             visible: rowType === "local" && canCancel
-                            text: "??"
+                            text: "取消"
                             tone: "warning"
                             onClicked: downloadsViewModel.cancelLocalDownload(transferId)
                         }
+                    }
+
+                    Text {
+                        visible: !rowRoot.hasActions
+                        anchors.right: parent.right
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "-"
+                        color: ThemeSystem.Theme.textSecondary
+                        font.pixelSize: 12
+                        font.family: ThemeSystem.Theme.fontFamily
                     }
                 }
             }
@@ -836,13 +812,22 @@ ResponsivePage {
 
                                     Text {
                                         Layout.fillWidth: true
-                                        text: root.displayValue(fileItem.fileName)
+                                        text: root.ellipsizedResourceName(fileItem.fileName)
                                         color: ThemeSystem.Theme.textPrimary
                                         font.pixelSize: 13
                                         font.family: ThemeSystem.Theme.fontFamily
                                         wrapMode: Text.NoWrap
                                         elide: Text.ElideRight
                                         maximumLineCount: 1
+                                        ToolTip.visible: fileNameMouse.containsMouse && root.displayValue(fileItem.fileName).length > text.length
+                                        ToolTip.text: root.displayValue(fileItem.fileName)
+
+                                        MouseArea {
+                                            id: fileNameMouse
+                                            anchors.fill: parent
+                                            hoverEnabled: true
+                                            acceptedButtons: Qt.NoButton
+                                        }
                                     }
                                 }
 
@@ -904,19 +889,6 @@ ResponsivePage {
                                             onClicked: root.openFileDetail(fileItem, title)
                                         }
 
-                                        GhostPillButton {
-                                            visible: Boolean(fileItem.canRetry)
-                                            text: "重试"
-                                            tone: "primary"
-                                            onClicked: root.downloadsVm.retryServerDownload(fileItem.gid)
-                                        }
-
-                                        GhostPillButton {
-                                            visible: Boolean(fileItem.canDelete)
-                                            text: "删除"
-                                            tone: "danger"
-                                            onClicked: root.downloadsVm.deleteServerDownload(fileItem.gid)
-                                        }
                                     }
                                 }
                             }
@@ -1259,13 +1231,6 @@ ResponsivePage {
                     anchors.margins: 14
                     spacing: 12
 
-                    TaskSegmentedControl {
-                        Layout.fillWidth: true
-                        options: root.sectionOptions
-                        currentValue: root.downloadsVm.taskSection
-                        onValueSelected: root.downloadsVm.setTaskSection(value)
-                    }
-
                     GridLayout {
                         Layout.fillWidth: true
                         columns: root.compact ? 1 : 2
@@ -1275,7 +1240,7 @@ ResponsivePage {
                         AppTextField {
                             Layout.fillWidth: true
                             text: root.downloadsVm.unifiedKeyword
-                            placeholderText: "搜索任务、文件名、状态或路径"
+                            placeholderText: "搜索本地下载、文件名、状态或路径"
                             onTextEdited: root.downloadsVm.setUnifiedKeyword(text)
                         }
 
@@ -1298,19 +1263,6 @@ ResponsivePage {
                         return root.downloadsVm.errorMessage
                     })
                     item.tone = "danger"
-                }
-            }
-
-            Loader {
-                active: root.downloadsVm.taskSection === "queue"
-                        && root.downloadsVm.queueFloodWaitText.length > 0
-                sourceComponent: inlineMessageBanner
-
-                onLoaded: {
-                    item.message = Qt.binding(function() {
-                        return root.downloadsVm.queueFloodWaitText
-                    })
-                    item.tone = "warning"
                 }
             }
 
@@ -1342,11 +1294,11 @@ ResponsivePage {
                             anchors.rightMargin: 16
                             anchors.topMargin: 9
                             anchors.bottomMargin: 9
-                            spacing: 16
+                            spacing: root.taskColumnSpacing
 
                             Text {
                                 Layout.fillWidth: true
-                                Layout.minimumWidth: 240
+                                Layout.minimumWidth: root.taskResourceMinWidth
                                 text: "资源名"
                                 color: ThemeSystem.Theme.textSecondary
                                 font.pixelSize: 12
@@ -1355,7 +1307,7 @@ ResponsivePage {
                             }
 
                             Text {
-                                Layout.preferredWidth: 110
+                                Layout.preferredWidth: root.taskStatusColumnWidth
                                 text: "状态"
                                 color: ThemeSystem.Theme.textSecondary
                                 font.pixelSize: 12
@@ -1364,7 +1316,7 @@ ResponsivePage {
                             }
 
                             Text {
-                                Layout.preferredWidth: 110
+                                Layout.preferredWidth: root.taskProgressColumnWidth
                                 horizontalAlignment: Text.AlignHCenter
                                 text: "进度"
                                 color: ThemeSystem.Theme.textSecondary
@@ -1374,7 +1326,7 @@ ResponsivePage {
                             }
 
                             Text {
-                                Layout.preferredWidth: 110
+                                Layout.preferredWidth: root.taskSizeColumnWidth
                                 text: "大小"
                                 color: ThemeSystem.Theme.textSecondary
                                 font.pixelSize: 12
@@ -1383,7 +1335,7 @@ ResponsivePage {
                             }
 
                             Text {
-                                Layout.preferredWidth: 150
+                                Layout.preferredWidth: root.taskTimeColumnWidth
                                 text: "时间"
                                 color: ThemeSystem.Theme.textSecondary
                                 font.pixelSize: 12
@@ -1392,7 +1344,7 @@ ResponsivePage {
                             }
 
                             Text {
-                                Layout.preferredWidth: 180
+                                Layout.preferredWidth: root.taskActionColumnWidth
                                 horizontalAlignment: Text.AlignRight
                                 text: "操作"
                                 color: ThemeSystem.Theme.textSecondary
@@ -1421,6 +1373,7 @@ ResponsivePage {
                             required property string metaSecondary
                             required property string error
                             property string gid: ""
+                            property int downloadId: 0
                             property int uploadId: 0
                             property string transferId: ""
                             property string localPath: ""
@@ -1458,6 +1411,7 @@ ResponsivePage {
                                     metaSecondary: metaSecondary,
                                     error: error,
                                     gid: gid,
+                                    downloadId: downloadId,
                                     uploadId: uploadId,
                                     transferId: transferId,
                                     localPath: localPath,

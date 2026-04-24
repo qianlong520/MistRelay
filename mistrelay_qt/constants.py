@@ -43,7 +43,7 @@ ROUTES = ("dashboard", "downloads", "drive", "settings")
 
 ROUTE_TITLES = {
     "dashboard": "概览面板",
-    "downloads": "任务中心",
+    "downloads": "下载管理",
     "drive": "我的网盘",
     "settings": "系统设置",
 }

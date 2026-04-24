@@ -17,19 +17,6 @@ ResponsivePage {
         maxConcurrentDownloads: 1,
         threadsPerDownload: 1,
         errorMessage: "",
-        serverStatusMessage: "",
-        serverCategories: [],
-        serverFieldsModel: null,
-        rcloneConfigPath: "",
-        rcloneConfigText: "",
-        rcloneRemotes: [],
-        dockerLogLines: 200,
-        dockerLogs: "",
-        logFilesModel: null,
-        logKeyword: "",
-        logTailCount: 200,
-        appLogSummary: "",
-        appLogText: "",
         bootstrap: function() {},
         setServerBaseUrl: function() {},
         setProxyEnabled: function() {},
@@ -39,24 +26,6 @@ ResponsivePage {
         setMaxConcurrentDownloads: function() {},
         setThreadsPerDownload: function() {},
         save: function() {},
-        loadServerCategory: function() {},
-        reloadServerConfig: function() {},
-        saveServerCategory: function() {},
-        setServerField: function() {},
-        setRcloneConfigText: function() {},
-        saveRcloneConfigFile: function() {},
-        loadRcloneConfigFile: function() {},
-        restartDocker: function() {},
-        setDockerLogLines: function() {},
-        loadDockerLogs: function() {},
-        clearDockerLogs: function() {},
-        setSelectedLogFile: function() {},
-        setLogLevel: function() {},
-        setLogKeyword: function() {},
-        setLogTailCount: function() {},
-        loadAppLogs: function() {},
-        downloadSelectedLogFile: function() {},
-        clearAppLogDisplay: function() {}
     })
     readonly property var updateVm: updateViewModel || ({
         updateState: "",
@@ -75,13 +44,8 @@ ResponsivePage {
     verticalPadding: 24
     sectionSpacing: 24
 
-    property string scope: "client"
     property string clientTab: "connection"
-    property string serverCategory: "telegram"
-    property string managementTab: "docker"
     readonly property int formColumns: compact ? 1 : 2
-    readonly property int managementMetricColumns: compact ? 1 : 3
-    readonly property int logFilterColumns: compact ? 1 : 2
     readonly property int filterButtonMinWidth: compact ? 0 : 116
 
     function toneColor(tone) {
@@ -126,52 +90,6 @@ ResponsivePage {
     }
 
     Component.onCompleted: root.settingsVm.bootstrap()
-    onServerCategoryChanged: {
-        root.settingsVm.loadServerCategory(serverCategory)
-        if (serverCategory === "rclone") {
-            root.settingsVm.loadRcloneConfigFile()
-        }
-    }
-
-    component ScopeButton: Button {
-        id: scopeButton
-        required property string buttonValue
-        required property string buttonLabel
-
-        text: buttonLabel
-        checkable: true
-        checked: root.scope === buttonValue
-        hoverEnabled: true
-        implicitHeight: 42
-        horizontalPadding: 18
-        onClicked: root.scope = buttonValue
-
-        background: Rectangle {
-            radius: ThemeSystem.Theme.radiusMedium
-            color: scopeButton.checked
-                   ? ThemeSystem.Theme.sidebarActiveFill
-                   : (scopeButton.hovered ? ThemeSystem.Theme.sidebarHoverFill : "#ffffff")
-            border.width: 1
-            border.color: scopeButton.checked
-                          ? "#9dc7f0"
-                          : (scopeButton.hovered ? ThemeSystem.Theme.lineColorStrong : ThemeSystem.Theme.cardBorder)
-
-            Behavior on color {
-                ColorAnimation { duration: ThemeSystem.Theme.fastDuration }
-            }
-
-        }
-
-        contentItem: Text {
-            text: scopeButton.text
-            color: scopeButton.checked ? ThemeSystem.Theme.colorPrimary : ThemeSystem.Theme.textPrimary
-            font.bold: true
-            font.family: ThemeSystem.Theme.fontFamily
-            horizontalAlignment: Text.AlignHCenter
-            verticalAlignment: Text.AlignVCenter
-        }
-    }
-
     component FilterButton: Button {
         id: filterButton
         required property bool activeState
@@ -426,131 +344,6 @@ ResponsivePage {
         }
     }
 
-    GlassCard {
-        Layout.fillWidth: true
-        backgroundColor: "#fbfdff"
-        borderColor: ThemeSystem.Theme.cardBorderStrong
-        shadowOpacity: 0.1
-        shadowOffsetY: 12
-        shadowSpread: 22
-        implicitHeight: headerContent.implicitHeight + padding * 2
-
-        GridLayout {
-            id: headerContent
-            anchors.fill: parent
-            columns: root.compact ? 1 : 2
-            columnSpacing: 20
-            rowSpacing: 16
-
-            ColumnLayout {
-                Layout.fillWidth: true
-                spacing: 18
-
-                FluentSectionHeader {
-                    Layout.fillWidth: true
-                    eyebrow: "SETTINGS"
-                    title: "设置中心"
-                    description: "客户端配置、服务端参数、资源监控、系统日志与更新入口统一收敛到 Qt 设置页，布局会根据窗口宽度自动调整。"
-                }
-
-                Flow {
-                    Layout.fillWidth: true
-                    spacing: 10
-
-                    ScopeButton {
-                        buttonValue: "client"
-                        buttonLabel: "客户端设置"
-                    }
-
-                    ScopeButton {
-                        buttonValue: "server"
-                        buttonLabel: "服务端设置"
-                    }
-
-                    ScopeButton {
-                        buttonValue: "management"
-                        buttonLabel: "系统管理"
-                    }
-                }
-            }
-
-            Rectangle {
-                visible: !root.compact
-                Layout.fillWidth: true
-                radius: ThemeSystem.Theme.radiusLarge
-                color: ThemeSystem.Theme.panelSurfaceSecondary
-                border.width: 1
-                border.color: ThemeSystem.Theme.cardBorder
-                implicitHeight: headerAside.implicitHeight + 24
-
-                ColumnLayout {
-                    id: headerAside
-                    anchors.fill: parent
-                    anchors.margins: 16
-                    spacing: 10
-
-                    Text {
-                        text: "布局优化已启用"
-                        color: ThemeSystem.Theme.colorPrimary
-                        font.pixelSize: 12
-                        font.bold: true
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: "系统管理区现在保留 Docker 日志、系统日志和容器重启入口，操作更聚焦。"
-                        color: ThemeSystem.Theme.textPrimary
-                        font.pixelSize: 14
-                        font.bold: true
-                        wrapMode: Text.WordWrap
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-
-                    Text {
-                        Layout.fillWidth: true
-                        text: "保持现有 PySide 状态层和接口不变，只整理视觉层级、文案和响应式布局。"
-                        color: ThemeSystem.Theme.textSecondary
-                        font.pixelSize: 13
-                        wrapMode: Text.WordWrap
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 8
-
-                        Repeater {
-                            model: ["响应式布局", "统一文案", "系统管理重构"]
-
-                            delegate: Rectangle {
-                                id: tagChip
-                                required property string modelData
-
-                                radius: 999
-                                color: "#ffffff"
-                                border.width: 1
-                                border.color: ThemeSystem.Theme.cardBorder
-                                implicitHeight: 30
-                                implicitWidth: tagLabel.implicitWidth + 22
-
-                                Text {
-                                    id: tagLabel
-                                    anchors.centerIn: parent
-                                    text: tagChip.modelData
-                                    color: ThemeSystem.Theme.textSecondary
-                                    font.pixelSize: 12
-                                    font.bold: true
-                                    font.family: ThemeSystem.Theme.fontFamily
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
     FluentBanner {
         Layout.fillWidth: true
         visible: root.settingsVm.errorMessage.length > 0
@@ -566,11 +359,7 @@ ResponsivePage {
         Loader {
             id: scopeLoader
             width: parent.width
-            sourceComponent: root.scope === "client"
-                             ? clientScope
-                             : root.scope === "server"
-                               ? serverScope
-                               : managementScope
+            sourceComponent: clientScope
         }
     }
 
@@ -624,6 +413,15 @@ ResponsivePage {
                             activeState: root.clientTab === "download"
                             onClicked: root.clientTab = "download"
                         }
+
+                        FilterButton {
+                            text: "\u7f13\u5b58"
+                            activeState: root.clientTab === "cache"
+                            onClicked: {
+                                root.clientTab = "cache"
+                                root.settingsVm.refreshCacheStats()
+                            }
+                        }
                     }
 
                     Loader {
@@ -634,7 +432,9 @@ ResponsivePage {
                                            ? clientUpdateTab
                                            : root.clientTab === "proxy"
                                              ? clientProxyTab
-                                             : clientDownloadTab
+                                             : root.clientTab === "download"
+                                               ? clientDownloadTab
+                                               : clientCacheTab
                     }
                 }
             }
@@ -949,548 +749,106 @@ ResponsivePage {
         }
     }
 
+
     Component {
-        id: serverScope
+        id: clientCacheTab
 
         ColumnLayout {
             width: root.contentFrameWidth
-            spacing: root.sectionSpacing
+            spacing: 16
 
-            GlassCard {
-                Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: serverOverviewContent.implicitHeight + padding * 2
+            SectionIntro {
+                eyebrow: "CACHE"
+                title: "\u672c\u5730\u7f13\u5b58\u7ba1\u7406"
+                description: "\u8bbe\u7f6e\u9884\u89c8\u7f13\u5b58\u4fdd\u5b58\u4f4d\u7f6e\uff0c\u67e5\u770b\u5f53\u524d\u5360\u7528\uff0c\u5e76\u5728\u9700\u8981\u65f6\u6e05\u7406\u672c\u5730\u7f13\u5b58\u6587\u4ef6\u3002"
+            }
 
-                ColumnLayout {
-                    id: serverOverviewContent
-                    anchors.fill: parent
-                    spacing: 18
+            LabeledControl {
+                label: "\u7f13\u5b58\u76ee\u5f55"
+                hint: "\u7559\u7a7a\u65f6\u4f7f\u7528\u7cfb\u7edf\u9ed8\u8ba4\u7f13\u5b58\u76ee\u5f55\uff1b\u4fee\u6539\u540e\u4f1a\u5f71\u54cd\u540e\u7eed\u9884\u89c8\u7f13\u5b58\u3002"
 
-                    SectionIntro {
-                        eyebrow: "SERVER"
-                        title: "服务端设置"
-                        description: "按类别查看与编辑服务端配置，并支持重新读取或从 config.yml 导入。"
+                GridLayout {
+                    Layout.fillWidth: true
+                    columns: root.compact ? 1 : 3
+                    columnSpacing: 12
+                    rowSpacing: 12
+
+                    AppTextField {
+                        Layout.fillWidth: true
+                        text: root.settingsVm.cacheDir
+                        placeholderText: "\u9ed8\u8ba4\u672c\u5730\u7f13\u5b58\u76ee\u5f55"
+                        onTextEdited: root.settingsVm.setCacheDir(text)
                     }
 
-                    Text {
-                        Layout.fillWidth: true
-                        text: root.settingsVm.serverStatusMessage
-                        wrapMode: Text.WordWrap
-                        color: ThemeSystem.Theme.textSecondary
-                        font.family: ThemeSystem.Theme.fontFamily
+                    SecondaryButton {
+                        text: "\u9009\u62e9\u76ee\u5f55"
+                        Layout.fillWidth: root.compact
+                        tone: "primary"
+                        onClicked: root.settingsVm.pickCacheDir()
                     }
 
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        Repeater {
-                            model: root.settingsVm.serverCategories
-
-                            delegate: FilterButton {
-                                required property var modelData
-
-                                text: modelData.label
-                                activeState: root.serverCategory === modelData.key
-                                onClicked: root.serverCategory = modelData.key
-                            }
-                        }
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 12
-
-                        PrimaryButton {
-                            text: "保存当前分类"
-                            onClicked: root.settingsVm.saveServerCategory(root.serverCategory)
-                        }
-
-                        SecondaryButton {
-                            text: "重新读取"
-                            tone: "primary"
-                            onClicked: root.settingsVm.loadServerCategory(root.serverCategory)
-                        }
-
-                        SecondaryButton {
-                            text: "从 config.yml 重新导入"
-                            tone: "primary"
-                            onClicked: root.settingsVm.reloadServerConfig(root.serverCategory)
-                        }
+                    SecondaryButton {
+                        text: "\u6253\u5f00\u76ee\u5f55"
+                        Layout.fillWidth: root.compact
+                        onClicked: root.settingsVm.openCacheDir()
                     }
                 }
             }
 
-            GlassCard {
+            GridLayout {
                 Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: serverFieldsContent.implicitHeight + padding * 2
+                columns: root.compact ? 1 : 3
+                columnSpacing: 14
+                rowSpacing: 14
 
-                ColumnLayout {
-                    id: serverFieldsContent
-                    anchors.fill: parent
-                    spacing: 16
+                KeyValueRow {
+                    label: "\u7f13\u5b58\u5360\u7528"
+                    value: root.settingsVm.cacheTotalSize
+                }
 
-                    SectionIntro {
-                        eyebrow: "DETAILS"
-                        title: "配置字段"
-                        description: "按当前分类展示可编辑字段，保存后会同步服务端配置。"
-                    }
+                KeyValueRow {
+                    label: "\u7f13\u5b58\u9879\u76ee"
+                    value: root.settingsVm.cacheItemCount + " \u9879"
+                }
 
-                    Repeater {
-                        model: root.settingsVm.serverFieldsModel || []
-
-                        delegate: ColumnLayout {
-                            required property string key
-                            required property string label
-                            required property string fieldType
-                            required property var value
-
-                            Layout.fillWidth: true
-                            spacing: 8
-
-                            Text {
-                                text: parent.label
-                                color: ThemeSystem.Theme.textPrimary
-                                font.bold: true
-                                wrapMode: Text.WordWrap
-                                font.family: ThemeSystem.Theme.fontFamily
-                            }
-
-                            Loader {
-                                Layout.fillWidth: true
-                                property string fieldKey: parent.key
-                                property var fieldValue: parent.value
-                                sourceComponent: parent.fieldType === "bool"
-                                                 ? boolField
-                                                 : parent.fieldType === "multiline"
-                                                   ? multilineField
-                                                   : parent.fieldType === "int"
-                                                     ? intField
-                                                     : parent.fieldType === "password"
-                                                       ? passwordField
-                                                       : textField
-                            }
-                        }
-                    }
+                KeyValueRow {
+                    label: "\u7f13\u5b58\u6587\u4ef6"
+                    value: root.settingsVm.cacheFileCount + " \u4e2a"
                 }
             }
 
-            GlassCard {
-                visible: root.serverCategory === "rclone"
+            LabeledControl {
+                label: "\u7f13\u5b58\u5185\u5bb9"
+                hint: "\u663e\u793a\u6700\u8fd1\u7684\u524d 50 \u4e2a\u7f13\u5b58\u6587\u4ef6\u3002"
+
+                ConsoleArea {
+                    Layout.fillWidth: true
+                    Layout.preferredHeight: 220
+                    text: root.settingsVm.cacheItemsText
+                }
+            }
+
+            Flow {
                 Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: rcloneContent.implicitHeight + padding * 2
+                spacing: 12
 
-                ColumnLayout {
-                    id: rcloneContent
-                    anchors.fill: parent
-                    spacing: 14
+                PrimaryButton {
+                    text: "\u4fdd\u5b58\u7f13\u5b58\u8bbe\u7f6e"
+                    onClicked: root.settingsVm.saveCacheSettings()
+                }
 
-                    SectionIntro {
-                        eyebrow: "RCLONE"
-                        title: "Rclone 配置文件"
-                        description: "查看或编辑当前服务端的 Rclone 配置内容，并同步远端列表。"
-                    }
+                SecondaryButton {
+                    text: "\u5237\u65b0\u5217\u8868"
+                    onClicked: root.settingsVm.refreshCacheStats()
+                }
 
-                    Text {
-                        Layout.fillWidth: true
-                        text: "路径：" + root.settingsVm.rcloneConfigPath
-                        wrapMode: Text.WordWrap
-                        color: ThemeSystem.Theme.textSecondary
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-
-                    TextArea {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 260
-                        text: root.settingsVm.rcloneConfigText
-                        wrapMode: TextArea.NoWrap
-                        font.family: "Consolas"
-                        onTextChanged: if (activeFocus) root.settingsVm.setRcloneConfigText(text)
-
-                        background: Rectangle {
-                            radius: ThemeSystem.Theme.radiusMedium
-                            color: "#0f172a"
-                            border.width: 1
-                            border.color: "#1e293b"
-                        }
-
-                        color: "#e2e8f0"
-                        selectionColor: ThemeSystem.Theme.colorPrimary
-                    }
-
-                    Text {
-                        visible: root.settingsVm.rcloneRemotes.length > 0
-                        Layout.fillWidth: true
-                        text: "已发现 Remotes：" + root.settingsVm.rcloneRemotes.map(function(item) {
-                                  return item.name || item.remote || ""
-                              }).filter(function(item) {
-                                  return item.length > 0
-                              }).join(", ")
-                        wrapMode: Text.WordWrap
-                        color: ThemeSystem.Theme.textSecondary
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 12
-
-                        PrimaryButton {
-                            text: "保存 Rclone 配置"
-                            onClicked: root.settingsVm.saveRcloneConfigFile()
-                        }
-
-                        SecondaryButton {
-                            text: "重新读取"
-                            tone: "primary"
-                            onClicked: root.settingsVm.loadRcloneConfigFile()
-                        }
-                    }
+                SecondaryButton {
+                    text: "\u6e05\u9664\u7f13\u5b58"
+                    tone: "danger"
+                    onClicked: root.settingsVm.clearCache()
                 }
             }
         }
     }
 
-    Component {
-        id: managementScope
-
-        ColumnLayout {
-            width: root.contentFrameWidth
-            spacing: root.sectionSpacing
-
-            GlassCard {
-                Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: managementOverviewContent.implicitHeight + padding * 2
-
-                ColumnLayout {
-                    id: managementOverviewContent
-                    anchors.fill: parent
-                    spacing: 18
-
-                    SectionIntro {
-                        eyebrow: "MANAGEMENT"
-                        title: "系统管理"
-                        description: "集中查看 Docker 日志与系统日志，并提供容器重启操作。"
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 10
-
-                        FilterButton {
-                            text: "Docker 日志"
-                            activeState: root.managementTab === "docker"
-                            onClicked: root.managementTab = "docker"
-                        }
-
-                        FilterButton {
-                            text: "系统日志"
-                            activeState: root.managementTab === "app-logs"
-                            onClicked: root.managementTab = "app-logs"
-                        }
-
-                        PrimaryButton {
-                            text: "重启容器"
-                            onClicked: root.settingsVm.restartDocker()
-                        }
-                    }
-                }
-            }
-
-            Loader {
-                Layout.fillWidth: true
-                sourceComponent: root.managementTab === "docker"
-                                 ? dockerManagementTab
-                                 : appLogsManagementTab
-            }
-        }
-    }
-
-    Component {
-        id: dockerManagementTab
-
-        ColumnLayout {
-            width: root.contentFrameWidth
-            spacing: root.sectionSpacing
-
-            GlassCard {
-                Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: dockerLogsContent.implicitHeight + padding * 2
-
-                ColumnLayout {
-                    id: dockerLogsContent
-                    anchors.fill: parent
-                    spacing: 16
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: root.formColumns
-                        columnSpacing: 18
-                        rowSpacing: 12
-
-                        SectionIntro {
-                            eyebrow: "LOGS"
-                            title: "Docker 日志"
-                            description: "控制显示行数并独立查看容器日志输出，日志面板会保持稳定高度。"
-                        }
-
-                        LabeledControl {
-                            label: "显示行数"
-                            Layout.alignment: Qt.AlignTop
-
-                            SpinBox {
-                                from: 20
-                                to: 500
-                                value: root.settingsVm.dockerLogLines
-                                onValueModified: root.settingsVm.setDockerLogLines(value)
-                            }
-                        }
-                    }
-
-                    ConsoleArea {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 360
-                        text: root.settingsVm.dockerLogs
-                    }
-
-                    Text {
-                        visible: root.settingsVm.dockerLogs.length === 0
-                        Layout.fillWidth: true
-                        text: "暂无日志内容，点击“刷新日志”获取最近输出。"
-                        color: ThemeSystem.Theme.textTertiary
-                        wrapMode: Text.WordWrap
-                        font.family: ThemeSystem.Theme.fontFamily
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 12
-
-                        SecondaryButton {
-                            text: "刷新日志"
-                            tone: "primary"
-                            onClicked: root.settingsVm.loadDockerLogs()
-                        }
-
-                        SecondaryButton {
-                            text: "清空显示"
-                            tone: "warning"
-                            onClicked: root.settingsVm.clearDockerLogs()
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    Component {
-        id: appLogsManagementTab
-
-        ColumnLayout {
-            width: root.contentFrameWidth
-            spacing: root.sectionSpacing
-
-            GlassCard {
-                Layout.fillWidth: true
-                backgroundColor: "#ffffff"
-                implicitHeight: appLogsContent.implicitHeight + padding * 2
-
-                ColumnLayout {
-                    id: appLogsContent
-                    anchors.fill: parent
-                    spacing: 18
-
-                    SectionIntro {
-                        eyebrow: "APP LOGS"
-                        title: "系统日志"
-                        description: "按日志文件、级别与关键词筛选系统日志，日志控制台保持独立区域显示。"
-                    }
-
-                    GridLayout {
-                        Layout.fillWidth: true
-                        columns: root.logFilterColumns
-                        columnSpacing: 16
-                        rowSpacing: 16
-
-                        LabeledControl {
-                            label: "日志文件"
-
-                            ComboBox {
-                                Layout.fillWidth: true
-                                model: root.settingsVm.logFilesModel || []
-                                textRole: "name"
-                                onActivated: function(index) {
-                                    var item = root.settingsVm.logFilesModel.get(index)
-                                    root.settingsVm.setSelectedLogFile(item.name || "")
-                                    root.settingsVm.loadAppLogs()
-                                }
-                            }
-                        }
-
-                        LabeledControl {
-                            label: "日志级别"
-
-                            ComboBox {
-                                Layout.fillWidth: true
-                                model: ["", "ERROR", "WARNING", "INFO", "DEBUG"]
-                                onActivated: function(index) {
-                                    root.settingsVm.setLogLevel(model[index])
-                                    root.settingsVm.loadAppLogs()
-                                }
-                            }
-                        }
-
-                        LabeledControl {
-                            label: "关键词"
-
-                            AppTextField {
-                                Layout.fillWidth: true
-                                text: root.settingsVm.logKeyword
-                                placeholderText: "输入关键词后回车搜索"
-                                onTextEdited: root.settingsVm.setLogKeyword(text)
-                                onAccepted: root.settingsVm.loadAppLogs()
-                            }
-                        }
-
-                        LabeledControl {
-                            label: "尾部行数"
-
-                            SpinBox {
-                                from: 50
-                                to: 1000
-                                stepSize: 50
-                                value: root.settingsVm.logTailCount
-                                onValueModified: root.settingsVm.setLogTailCount(value)
-                            }
-                        }
-                    }
-
-                    Flow {
-                        Layout.fillWidth: true
-                        spacing: 12
-
-                        PrimaryButton {
-                            text: "刷新日志"
-                            onClicked: root.settingsVm.loadAppLogs()
-                        }
-
-                        SecondaryButton {
-                            text: "下载当前日志"
-                            tone: "primary"
-                            onClicked: root.settingsVm.downloadSelectedLogFile()
-                        }
-
-                        SecondaryButton {
-                            text: "清空显示"
-                            tone: "warning"
-                            onClicked: root.settingsVm.clearAppLogDisplay()
-                        }
-                    }
-
-                    Rectangle {
-                        Layout.fillWidth: true
-                        radius: ThemeSystem.Theme.radiusMedium
-                        color: ThemeSystem.Theme.panelSurfaceSecondary
-                        border.width: 1
-                        border.color: ThemeSystem.Theme.cardBorder
-                        implicitHeight: logSummaryText.implicitHeight + 20
-
-                        Text {
-                            id: logSummaryText
-                            anchors.fill: parent
-                            anchors.margins: 10
-                            text: root.settingsVm.appLogSummary
-                            color: ThemeSystem.Theme.textSecondary
-                            wrapMode: Text.WordWrap
-                            font.family: ThemeSystem.Theme.fontFamily
-                        }
-                    }
-
-                    ConsoleArea {
-                        Layout.fillWidth: true
-                        Layout.preferredHeight: 520
-                        text: root.settingsVm.appLogText
-                    }
-                }
-            }
-        }
-    }
-
-    Component {
-        id: textField
-
-        AppTextField {
-            Layout.fillWidth: true
-            text: parent.fieldValue === undefined || parent.fieldValue === null ? "" : String(parent.fieldValue)
-            onTextEdited: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, text)
-        }
-    }
-
-    Component {
-        id: passwordField
-
-        AppTextField {
-            Layout.fillWidth: true
-            text: parent.fieldValue === undefined || parent.fieldValue === null ? "" : String(parent.fieldValue)
-            echoMode: TextInput.Password
-            onTextEdited: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, text)
-        }
-    }
-
-    Component {
-        id: multilineField
-
-        TextArea {
-            Layout.fillWidth: true
-            Layout.preferredHeight: 120
-            text: parent.fieldValue === undefined || parent.fieldValue === null ? "" : String(parent.fieldValue)
-            wrapMode: TextArea.Wrap
-            onTextChanged: if (activeFocus) root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, text)
-
-            background: Rectangle {
-                radius: ThemeSystem.Theme.radiusMedium
-                color: "#f8fafc"
-                border.width: 1
-                border.color: ThemeSystem.Theme.lineColor
-            }
-
-            color: ThemeSystem.Theme.textPrimary
-            selectionColor: ThemeSystem.Theme.colorPrimary
-        }
-    }
-
-    Component {
-        id: intField
-
-        SpinBox {
-            from: -2147483647
-            to: 2147483647
-            value: Number(parent.fieldValue || 0)
-            onValueModified: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, value)
-        }
-    }
-
-    Component {
-        id: boolField
-
-        RowLayout {
-            spacing: 12
-
-            Switch {
-                checked: Boolean(parent.fieldValue)
-                onToggled: root.settingsVm.setServerField(root.serverCategory, parent.fieldKey, checked)
-            }
-
-            Text {
-                text: Boolean(parent.fieldValue) ? "已启用" : "未启用"
-                color: ThemeSystem.Theme.textSecondary
-                font.family: ThemeSystem.Theme.fontFamily
-                Layout.alignment: Qt.AlignVCenter
-            }
-        }
-    }
 }

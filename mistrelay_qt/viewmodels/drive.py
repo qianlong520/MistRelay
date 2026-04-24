@@ -9,7 +9,6 @@ from PySide6.QtCore import Property, QTimer, QUrl, QObject, Signal, Slot
 
 from ..formatters import format_bytes, format_datetime
 from ..list_models import RoleListModel
-from ..paths import preview_cache_root
 from ..task_runner import TaskRunner
 from .base import BaseViewModel
 
@@ -1527,7 +1526,7 @@ class DriveViewModel(BaseViewModel):
         except Exception:
             pass
 
-        cache_root = preview_cache_root()
+        cache_root = self._local_runtime_service.preview_cache_root()
         for item in self._raw_items:
             path = str(item.get("path") or "")
             if not path:

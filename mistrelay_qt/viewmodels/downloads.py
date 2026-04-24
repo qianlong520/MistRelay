@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from PySide6.QtCore import QObject, Property, QTimer, Signal, Slot
+from PySide6.QtCore import QObject, Property, Signal, Slot
 
 from ..formatters import format_bytes, format_datetime, format_progress, format_speed
 from ..list_models import RoleListModel
@@ -44,8 +44,8 @@ class DownloadsViewModel(BaseViewModel):
 
         self._current_tab = "tasks"
         self._summary_cards: list[dict[str, Any]] = []
-        self._headline = "任务中心已接入真实数据模型。"
-        self._runtime_note = "本地下载、任务队列和服务端记录统一由 Python 状态层驱动。"
+        self._headline = "下载管理仅保留本地下载"
+        self._runtime_note = "本地下载状态由桌面端运行时实时驱动。"
         self._task_keyword = ""
         self._task_status_filter = "all"
         self._queue_keyword = ""
@@ -59,12 +59,12 @@ class DownloadsViewModel(BaseViewModel):
         self._unified_keyword = ""
         self._unified_status_filter = "all"
         self._unified_filter_summary = ""
-        self._task_section = "server"
+        self._task_section = "local"
         self._current_page = 1
         self._page_size = DEFAULT_TASK_PAGE_SIZE
         self._total_pages = 1
         self._total_visible_items = 0
-        self._page_summary = "当前没有匹配的任务"
+        self._page_summary = "当前没有匹配的本地下载"
         self._limit = 100
         self._refresh_scheduled = False
 
@@ -255,9 +255,7 @@ class DownloadsViewModel(BaseViewModel):
 
     @Slot(str)
     def setTaskSection(self, value: str) -> None:
-        normalized = value or "server"
-        if normalized not in {"server", "queue", "local"}:
-            normalized = "server"
+        normalized = "local"
         if normalized == self._task_section:
             return
         self._task_section = normalized
@@ -304,28 +302,24 @@ class DownloadsViewModel(BaseViewModel):
         self._task_runner.submit(self._load_snapshot, on_success=self._apply_snapshot, on_error=self._apply_error)
 
     def _load_snapshot(self) -> dict[str, Any]:
-        return {
-            "downloads": self._api_client.get_downloads(limit=self._limit, grouped=False),
-            "uploads": self._api_client.get_uploads(limit=self._limit),
-            "queue": self._api_client.get_queue_status(),
-            "download_stats": self._api_client.get_download_statistics(),
-            "upload_stats": self._api_client.get_upload_statistics(),
-        }
+        return {"local": self._local_runtime_service.list_download_statuses()}
 
     def _apply_snapshot(self, payload: dict[str, Any]) -> None:
         self._refresh_scheduled = False
         self._set_busy(False)
-        downloads_payload = payload.get("downloads") or {}
-        uploads_payload = payload.get("uploads") or {}
+        self._download_groups = []
+        self._upload_records = []
+        self._queue_snapshot = {}
+        self._download_statistics = {}
+        self._upload_statistics = {}
+        self._local_transfers = {
+            str(item.get("transferId") or ""): item
+            for item in payload.get("local") or []
+            if item.get("transferId")
+        }
 
-        self._download_groups = list(downloads_payload.get("data") or [])
-        self._upload_records = list(uploads_payload.get("data") or [])
-        self._queue_snapshot = payload.get("queue") or {}
-        self._download_statistics = (payload.get("download_stats") or {}).get("data") or {}
-        self._upload_statistics = (payload.get("upload_stats") or {}).get("data") or {}
-
-        self._headline = "任务中心已完成服务端任务、本地下载和队列快照接线。"
-        self._runtime_note = "服务端任务快照和本地下载状态已同步，WebSocket 更新会自动触发局部刷新。"
+        self._headline = "下载管理仅保留本地下载"
+        self._runtime_note = "本地下载状态由桌面端运行时实时驱动。"
         self.headlineChanged.emit()
         self.runtimeNoteChanged.emit()
         self._rebuild_models()
@@ -334,105 +328,44 @@ class DownloadsViewModel(BaseViewModel):
         self._refresh_scheduled = False
         self._set_busy(False)
         self._set_error_message(message)
-        self._headline = "任务中心数据拉取失败"
+        self._headline = "下载管理数据拉取失败"
         self.headlineChanged.emit()
 
     def consume_status_event(self, payload: dict[str, Any]) -> None:
-        message_type = str(payload.get("type") or "")
-        if message_type not in {
-            "initial",
-            "download_update",
-            "upload_update",
-            "cleanup_update",
-            "statistics_update",
-        }:
-            return
-        if self._busy or self._refresh_scheduled:
-            return
-        self._refresh_scheduled = True
-        QTimer.singleShot(500, self.refresh)
+        return
 
     def _rebuild_models(self) -> None:
         self._summary_cards = []
         self.summaryCardsChanged.emit()
 
-        active_downloads = self._normalize_download_records(self._download_groups)
-        active_uploads = [self._normalize_upload_record(record) for record in self._upload_records]
-
-        current_processing = self._queue_snapshot.get("current_processing")
-        queue_current = []
-        if current_processing:
-            queue_current.append(
-                self._normalize_queue_item(
-                    current_processing,
-                    state_label="处理中",
-                    state_kind="processing",
-                    waiting_index=0,
-                )
-            )
-
-        queue_waiting = [
-            self._normalize_queue_item(
-                item,
-                state_label=f"等待 {index + 1}",
-                state_kind="waiting",
-                waiting_index=index + 1,
-            )
-            for index, item in enumerate(self._queue_snapshot.get("waiting_items") or [])
-        ]
-
         local_items = [self._normalize_local_transfer(item) for item in self._local_transfers.values()]
-
-        self._queue_flood_wait_text = self._build_flood_wait_text()
-        self.queueFloodWaitTextChanged.emit()
-
-        filtered_downloads = [item for item in active_downloads if self._matches_task_item(item)]
-        filtered_uploads = [item for item in active_uploads if self._matches_task_item(item)]
-        filtered_queue_current = [item for item in queue_current if self._matches_queue_item(item)]
-        filtered_queue_waiting = [item for item in queue_waiting if self._matches_queue_item(item)]
         filtered_local = [item for item in local_items if self._matches_local_item(item)]
 
-        self._active_downloads_model.set_items(filtered_downloads)
-        self._active_uploads_model.set_items(filtered_uploads)
+        self._queue_flood_wait_text = ""
+        self.queueFloodWaitTextChanged.emit()
+
+        self._active_downloads_model.set_items([])
+        self._active_uploads_model.set_items([])
         self._group_records_model.set_items([])
-        self._queue_current_model.set_items(filtered_queue_current)
-        self._queue_waiting_model.set_items(filtered_queue_waiting)
+        self._queue_current_model.set_items([])
+        self._queue_waiting_model.set_items([])
         self._local_downloads_model.set_items(filtered_local)
 
-        self._task_filter_summary = (
-            f"下载 {len(filtered_downloads)}/{len(active_downloads)} · "
-            f"上传 {len(filtered_uploads)}/{len(active_uploads)}"
-        )
+        self._task_filter_summary = "仅显示本地下载"
         self.taskFilterSummaryChanged.emit()
 
-        waiting_total = len(queue_waiting)
-        self._queue_filter_summary = (
-            f"处理中 {len(filtered_queue_current)} · 等待 {len(filtered_queue_waiting)}/{waiting_total}"
-        )
+        self._queue_filter_summary = ""
         self.queueFilterSummaryChanged.emit()
 
         self._local_filter_summary = f"匹配 {len(filtered_local)} / {len(local_items)} 项"
         self.localFilterSummaryChanged.emit()
 
-        unified_items = [
-            *active_downloads,
-            *active_uploads,
-            *queue_current,
-            *queue_waiting,
-            *local_items,
-        ]
+        unified_items = list(local_items)
         unified_items = [item for item in unified_items if self._matches_unified_item(item)]
         unified_items.sort(key=self._unified_sort_key)
         self._unified_task_flow_model.set_items(unified_items)
 
-        visible_items = self._items_for_section(
-            active_downloads=active_downloads,
-            active_uploads=active_uploads,
-            queue_current=queue_current,
-            queue_waiting=queue_waiting,
-            local_items=local_items,
-        )
-        visible_items = [item for item in visible_items if self._matches_unified_item(item)]
+        visible_items = [item for item in local_items if self._matches_unified_item(item)]
         visible_items.sort(key=self._unified_sort_key)
         self._set_visible_task_items(visible_items)
 
@@ -451,7 +384,7 @@ class DownloadsViewModel(BaseViewModel):
             parts.append(f"失败 {counts['failed']}")
         if counts["completed"] > 0:
             parts.append(f"已完成 {counts['completed']}")
-        self._unified_filter_summary = " · ".join(parts) if parts else "当前没有匹配的任务"
+        self._unified_filter_summary = " · ".join(parts) if parts else "当前没有匹配的本地下载"
         self.unifiedFilterSummaryChanged.emit()
 
     def _normalize_download_records(self, records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -467,15 +400,18 @@ class DownloadsViewModel(BaseViewModel):
     def _normalize_active_download(self, group: dict[str, Any], record: dict[str, Any]) -> dict[str, Any]:
         progress = format_progress(record.get("completed_length"), record.get("total_length") or record.get("file_size"))
         status = str(record.get("status") or "pending")
+        can_retry = status in {"failed", "cancelled", "error"} and bool(record.get("gid"))
+        download_id = int(record.get("id") or 0)
+        can_delete = bool(record.get("gid")) or download_id > 0
         updated_at = str(record.get("updated_at") or record.get("created_at") or "")
         return {
             "rowType": "download",
             "sourceType": "download",
             "typeLabel": "下载",
-            "downloadId": int(record.get("id") or 0),
+            "downloadId": download_id,
             "gid": str(record.get("gid") or ""),
             "title": str(record.get("file_name") or "未知文件"),
-            "subtitle": str(group.get("caption") or group.get("group_key") or "下载任务"),
+            "subtitle": str(group.get("caption") or group.get("group_key") or "下载记录"),
             "status": status,
             "statusLabel": self._download_status_label(status, record.get("error_message")),
             "statusTone": self._download_status_tone(status, record.get("error_message")),
@@ -487,13 +423,13 @@ class DownloadsViewModel(BaseViewModel):
             "localPath": "",
             "queueHint": "",
             "error": str(record.get("error_message") or ""),
-            "canRetry": bool(record.get("gid") or record.get("source_url")),
-            "canDelete": bool(record.get("gid")),
+            "canRetry": can_retry,
+            "canDelete": can_delete,
             "canCancel": False,
             "canOpen": False,
             "canReveal": False,
             "primaryActionText": "重试" if bool(record.get("gid") or record.get("source_url")) else "",
-            "secondaryActionText": "删除" if bool(record.get("gid")) else "",
+            "secondaryActionText": "删除" if can_delete else "",
             "updatedAtRaw": updated_at,
             "sortTimestamp": self._sort_timestamp(updated_at),
             "sortWeight": self._sort_weight_for_bucket(self._download_status_bucket(status, record.get("error_message"))),
@@ -564,7 +500,7 @@ class DownloadsViewModel(BaseViewModel):
         waiting_index: int,
     ) -> dict[str, Any]:
         item_type = str(item.get("type") or "single")
-        title = str(item.get("title") or "未命名任务")
+        title = str(item.get("title") or "未命名下载")
         updated_at = str(
             item.get("updated_at")
             or item.get("created_at")
@@ -575,7 +511,7 @@ class DownloadsViewModel(BaseViewModel):
         queue_meta = (
             f"文件数 {item.get('media_group_total', 0)}"
             if item_type == "media_group"
-            else f"下载任务 {len(item.get('task_gids') or [])}"
+            else f"下载 {len(item.get('task_gids') or [])} 项"
         )
         return {
             "rowType": "queue",
@@ -706,11 +642,7 @@ class DownloadsViewModel(BaseViewModel):
         queue_waiting: list[dict[str, Any]],
         local_items: list[dict[str, Any]],
     ) -> list[dict[str, Any]]:
-        if self._task_section == "queue":
-            return [*queue_current, *queue_waiting]
-        if self._task_section == "local":
-            return list(local_items)
-        return [*active_downloads, *active_uploads]
+        return list(local_items)
 
     def _set_visible_task_items(self, items: list[dict[str, Any]]) -> None:
         total_items = len(items)
@@ -728,7 +660,7 @@ class DownloadsViewModel(BaseViewModel):
         self._total_pages = total_pages
         self._total_visible_items = total_items
         self._page_summary = (
-            f"当前没有匹配的任务"
+            f"当前没有匹配的本地下载"
             if total_items == 0
             else f"显示 {start_index + 1}-{end_index} / {total_items} 条"
         )
@@ -1143,7 +1075,7 @@ class DownloadsViewModel(BaseViewModel):
             "error": str(error_message or ""),
             "uploadItems": upload_items,
             "canRetry": bool(record.get("gid")),
-            "canDelete": bool(record.get("gid")),
+            "canDelete": bool(record.get("gid")) or int(record.get("id") or 0) > 0,
         }
 
     def _group_status(self, stats: dict[str, Any], downloads: list[dict[str, Any]]) -> tuple[str, str, str]:
@@ -1165,47 +1097,19 @@ class DownloadsViewModel(BaseViewModel):
 
     @Slot(str)
     def retryServerDownload(self, gid: str) -> None:
-        if not gid:
-            self._set_error_message("下载任务缺少 GID，无法重试")
-            return
-        self._task_runner.submit(
-            lambda: self._api_client.retry_download(gid),
-            on_success=lambda result: self._handle_server_action_result(result, "已重新提交下载任务"),
-            on_error=self._set_error_message,
-        )
+        return
 
-    @Slot(str)
-    def deleteServerDownload(self, gid: str) -> None:
-        if not gid:
-            self._set_error_message("下载任务缺少 GID，无法删除")
-            return
-        self._task_runner.submit(
-            lambda: self._api_client.delete_download(gid),
-            on_success=lambda result: self._handle_server_action_result(result, "已删除下载任务"),
-            on_error=self._set_error_message,
-        )
+    @Slot(str, int)
+    def deleteServerDownload(self, gid: str, download_id: int = 0) -> None:
+        return
 
     @Slot(int)
     def retryUpload(self, upload_id: int) -> None:
-        if upload_id <= 0:
-            self._set_error_message("上传任务 ID 不存在")
-            return
-        self._task_runner.submit(
-            lambda: self._api_client.retry_upload(upload_id),
-            on_success=lambda result: self._handle_server_action_result(result, "已重新提交上传任务"),
-            on_error=self._set_error_message,
-        )
+        return
 
     @Slot(int)
     def deleteUpload(self, upload_id: int) -> None:
-        if upload_id <= 0:
-            self._set_error_message("上传任务 ID 不存在")
-            return
-        self._task_runner.submit(
-            lambda: self._api_client.delete_upload(upload_id),
-            on_success=lambda result: self._handle_server_action_result(result, "已删除上传任务"),
-            on_error=self._set_error_message,
-        )
+        return
 
     @Slot(str)
     def cancelLocalDownload(self, transfer_id: str) -> None:
@@ -1237,7 +1141,7 @@ class DownloadsViewModel(BaseViewModel):
             self._set_error_message(str(exc))
             return
         self._local_transfers.pop(transfer_id, None)
-        self._show_toast("success", "已移除本地下载任务")
+        self._show_toast("success", "已移除本地下载")
         self._rebuild_models()
 
     @Slot(str)

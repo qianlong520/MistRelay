@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -24,7 +24,7 @@ from ..constants import (
     PREVIEW_READY_BYTES,
     TRANSFER_PROGRESS_EMIT_INTERVAL,
 )
-from ..paths import preview_cache_root
+from ..paths import configured_cache_root
 
 
 class TransferCancelledError(RuntimeError):
@@ -201,7 +201,12 @@ class LocalRuntimeService(QObject):
 
     def pick_download_dir(self, current_dir: str = "") -> str:
         base_dir = current_dir or self.get_default_download_dir()
-        selected = QFileDialog.getExistingDirectory(None, "选择下载目录", base_dir)
+        selected = QFileDialog.getExistingDirectory(None, "閫夋嫨涓嬭浇鐩綍", base_dir)
+        return selected or current_dir
+
+    def pick_cache_dir(self, current_dir: str = "") -> str:
+        base_dir = current_dir or str(self._preview_cache_root())
+        selected = QFileDialog.getExistingDirectory(None, "选择本地缓存目录", base_dir)
         return selected or current_dir
 
     def open_local_file(self, local_path: str) -> None:
@@ -267,7 +272,7 @@ class LocalRuntimeService(QObject):
         file_name: str,
     ) -> dict[str, Any]:
         destination = self._resolve_transfer_destination(
-            preview_cache_root(),
+            self._preview_cache_root(),
             remote,
             remote_path,
             file_name,
@@ -296,9 +301,9 @@ class LocalRuntimeService(QObject):
         file_name: str,
     ) -> dict[str, Any]:
         if self._preview_server is None:
-            raise RuntimeError("当前环境无法启动本地预览服务")
+            raise RuntimeError("褰撳墠鐜鏃犳硶鍚姩鏈湴棰勮鏈嶅姟")
         destination = self._resolve_transfer_destination(
-            preview_cache_root(),
+            self._preview_cache_root(),
             remote,
             remote_path,
             file_name,
@@ -340,13 +345,13 @@ class LocalRuntimeService(QObject):
     def get_transfer_status(self, transfer_id: str) -> dict[str, Any]:
         handle = self._lookup_transfer(transfer_id)
         if handle is None:
-            raise RuntimeError("未找到桌面传输任务")
+            raise RuntimeError("?????????")
         return self._snapshot(handle)
 
     def cancel_download(self, transfer_id: str) -> dict[str, Any]:
         handle = self._download_sessions.get(transfer_id)
         if handle is None:
-            raise RuntimeError("未找到本地下载任务")
+            raise RuntimeError("?????????")
         handle.cancel_requested.set()
         with handle.condition:
             handle.condition.notify_all()
@@ -356,15 +361,15 @@ class LocalRuntimeService(QObject):
     def retry_download(self, transfer_id: str) -> dict[str, Any]:
         handle = self._download_sessions.get(transfer_id)
         if handle is None:
-            raise RuntimeError("未找到本地下载任务")
+            raise RuntimeError("?????????")
 
         snapshot = self._snapshot(handle)
         if snapshot["state"] == "completed":
-            raise RuntimeError("已完成任务无需重试")
+            raise RuntimeError("?????????")
         if snapshot["state"] == "cancelling":
-            raise RuntimeError("任务仍在取消中，请稍后重试")
+            raise RuntimeError("?????????????")
         if snapshot["state"] not in {"error", "cancelled"}:
-            raise RuntimeError("只有失败或已取消任务可以重试")
+            raise RuntimeError("??????????????")
 
         self._cleanup_transfer_artifacts(handle)
         handle.cancel_requested.clear()
@@ -376,16 +381,16 @@ class LocalRuntimeService(QObject):
     def remove_download_session(self, transfer_id: str) -> None:
         handle = self._download_sessions.get(transfer_id)
         if handle is None:
-            raise RuntimeError("未找到本地下载任务")
+            raise RuntimeError("?????????")
         state = self._snapshot(handle)["state"]
         if state not in {"completed", "error", "cancelled"}:
-            raise RuntimeError("只有已结束任务可以删除")
+            raise RuntimeError("???????????")
         self._download_sessions.pop(transfer_id, None)
 
     def cancel_preview(self, transfer_id: str) -> None:
-        handle = self._preview_sessions.pop(transfer_id, None)
+        handle = self._preview_sessions.get(transfer_id)
         if handle is None:
-            raise RuntimeError("未找到本地预览任务")
+            raise RuntimeError("?????????")
         if self._snapshot(handle)["state"] not in {"completed", "error", "cancelled"}:
             handle.cancel_requested.set()
             with handle.condition:
@@ -403,9 +408,9 @@ class LocalRuntimeService(QObject):
             while True:
                 snapshot = self._snapshot_locked(handle)
                 if snapshot["state"] == "cancelled":
-                    raise TransferCancelledError("传输已取消")
+                    raise TransferCancelledError("?????")
                 if snapshot["state"] == "error":
-                    raise RuntimeError(snapshot["error"] or "预览缓存失败")
+                    raise RuntimeError(snapshot["error"] or "??????")
                 if snapshot["state"] == "completed" or int(snapshot["downloadedBytes"]) >= needed_bytes:
                     return snapshot
                 handle.condition.wait()
@@ -469,9 +474,17 @@ class LocalRuntimeService(QObject):
         raw = self._config_service.config.download.download_dir.strip()
         return Path(raw) if raw else Path(self.get_default_download_dir())
 
+    def preview_cache_root(self) -> Path:
+        return self._preview_cache_root()
+
+    def _preview_cache_root(self) -> Path:
+        if not self._config_service:
+            return configured_cache_root()
+        return configured_cache_root(self._config_service.config.cache.cache_dir)
+
     def _preview_stream_url(self, transfer_id: str) -> str:
         if self._preview_server is None:
-            raise RuntimeError("本地预览服务不可用")
+            raise RuntimeError("?????????")
         port = self._preview_server.server_address[1]
         return f"http://127.0.0.1:{port}/preview/{transfer_id}"
 
@@ -549,7 +562,7 @@ class LocalRuntimeService(QObject):
         with self._build_http_client() as client:
             with client.stream("GET", handle.source_url, follow_redirects=True) as response:
                 if response.status_code not in {HTTPStatus.OK, HTTPStatus.PARTIAL_CONTENT}:
-                    raise RuntimeError(f"下载文件失败: 服务返回 {response.status_code}")
+                    raise RuntimeError(f"涓嬭浇鏂囦欢澶辫触: 鏈嶅姟杩斿洖 {response.status_code}")
 
                 total_bytes = response.headers.get("Content-Length")
                 total = int(total_bytes) if total_bytes and total_bytes.isdigit() else None
@@ -629,7 +642,7 @@ class LocalRuntimeService(QObject):
             self._cleanup_file(target_path)
             if errors:
                 raise RuntimeError(errors[0])
-            raise TransferCancelledError("传输已取消")
+            raise TransferCancelledError("?????")
 
         if errors:
             self._cleanup_file(target_path)
@@ -642,7 +655,7 @@ class LocalRuntimeService(QObject):
         with self._build_http_client() as client:
             with client.stream("GET", handle.source_url, headers=headers, follow_redirects=True) as response:
                 if response.status_code not in {HTTPStatus.PARTIAL_CONTENT, HTTPStatus.OK}:
-                    raise RuntimeError(f"分片下载失败: 服务返回 {response.status_code}")
+                    raise RuntimeError(f"鍒嗙墖涓嬭浇澶辫触: 鏈嶅姟杩斿洖 {response.status_code}")
 
                 position = start
                 with target_path.open("r+b") as file_pointer:
@@ -687,7 +700,7 @@ class LocalRuntimeService(QObject):
         with self._build_http_client() as client:
             with client.stream("GET", source_url, follow_redirects=True) as response:
                 if response.status_code not in {HTTPStatus.OK, HTTPStatus.PARTIAL_CONTENT}:
-                    raise RuntimeError(f"下载文件失败: 服务返回 {response.status_code}")
+                    raise RuntimeError(f"涓嬭浇鏂囦欢澶辫触: 鏈嶅姟杩斿洖 {response.status_code}")
                 with temp_path.open("wb") as file_pointer:
                     for chunk in response.iter_bytes(chunk_size=64 * 1024):
                         if not chunk:
@@ -708,7 +721,7 @@ class LocalRuntimeService(QObject):
 
     def _abort_if_cancelled(self, handle: TransferHandle) -> None:
         if handle.cancel_requested.is_set():
-            raise TransferCancelledError("传输已取消")
+            raise TransferCancelledError("?????")
 
     def _advance_progress(self, handle: TransferHandle, delta: int) -> None:
         with handle.condition:
@@ -934,3 +947,4 @@ class LocalRuntimeService(QObject):
             json.dumps({"source_hash": source_hash}, ensure_ascii=False),
             encoding="utf-8",
         )
+

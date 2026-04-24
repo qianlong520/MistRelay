@@ -20,7 +20,7 @@ from .constants import (
     ORGANIZATION_NAME,
 )
 from .runtime import release_metadata, resolve_resource
-from .services import ApiClient, ConfigService, LocalRuntimeService, UpdateService, WebsocketService
+from .services import ApiClient, ConfigService, LocalCacheService, LocalRuntimeService, UpdateService, WebsocketService
 from .task_runner import TaskRunner
 from .viewmodels import (
     AppViewModel,
@@ -59,6 +59,7 @@ def build_engine(application: QApplication) -> QQmlApplicationEngine:
 
 def build_application_context() -> ApplicationContext:
     config_service = ConfigService()
+    local_cache_service = LocalCacheService(config_service)
     local_runtime_service = LocalRuntimeService(config_service=config_service)
     api_client = ApiClient(config_service)
     websocket_service = WebsocketService(config_service)
@@ -103,6 +104,7 @@ def build_application_context() -> ApplicationContext:
     settings_view_model = SettingsViewModel(
         api_client=api_client,
         config_service=config_service,
+        local_cache_service=local_cache_service,
         local_runtime_service=local_runtime_service,
         update_service=update_service,
         task_runner=task_runner,

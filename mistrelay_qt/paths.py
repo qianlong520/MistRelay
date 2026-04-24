@@ -35,6 +35,13 @@ def preview_cache_root() -> Path:
     return cache_root() / "preview-cache"
 
 
+def configured_cache_root(cache_dir: str | None = None) -> Path:
+    normalized = str(cache_dir or "").strip()
+    if normalized:
+        return Path(normalized).expanduser()
+    return preview_cache_root()
+
+
 def updates_root() -> Path:
     return cache_root() / "updates"
 

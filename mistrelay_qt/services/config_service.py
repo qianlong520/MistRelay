@@ -97,6 +97,7 @@ class ConfigService:
         download_dir: str,
         max_concurrent_downloads: int,
         threads_per_download: int,
+        cache_dir: str | None = None,
     ) -> AppConfig:
         self._config.server_base_url = server_base_url.rstrip("/")
         self._config.proxy.enabled = proxy_enabled
@@ -104,4 +105,10 @@ class ConfigService:
         self._config.download.download_dir = download_dir.strip()
         self._config.download.max_concurrent_downloads = max(1, int(max_concurrent_downloads))
         self._config.download.threads_per_download = max(1, int(threads_per_download))
+        if cache_dir is not None:
+            self._config.cache.cache_dir = cache_dir.strip()
+        return self.save(self._config)
+
+    def update_cache_dir(self, value: str) -> AppConfig:
+        self._config.cache.cache_dir = value.strip()
         return self.save(self._config)
